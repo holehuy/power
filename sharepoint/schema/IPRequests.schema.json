@@ -1,0 +1,18 @@
+{
+  "listName": "IPRequests",
+  "description": "Sổ tiếp nhận yêu cầu (6.4) — record CHA. HostName/Purpose/AssignedIp/AssignedFqdn nằm ở list con IPRequestItems (hỗ trợ cấp phát hàng loạt) — kể cả đăng ký 1 IP cũng luôn tạo 1 dòng chi tiết.",
+  "columns": [
+    { "name": "RequestId", "type": "Text", "required": true, "description": "REQ-yyyymmdd-{SharePoint item ID cha}. Đánh số xác định (không dùng counter tuần tự) nên không xung đột khi đăng ký đồng thời" },
+    { "name": "RequesterUpn", "type": "Text", "required": true, "indexed": true },
+    { "name": "BatchSize", "type": "Number", "required": true, "description": "Số dòng chi tiết (1-20)" },
+    { "name": "RequesterName", "type": "Text" },
+    { "name": "RequesterEmail", "type": "Text" },
+    { "name": "Department", "type": "Text" },
+    { "name": "SegmentId", "type": "Text", "description": "Dùng để Power Automate Lookup Segments (Gateway/SubnetMask/DnsServers) khi soạn thông báo hoàn tất (7.1) — KHÔNG copy giá trị segment sang IPRequests" },
+    { "name": "Status", "type": "Choice", "choices": ["Pending", "Assigned", "PartiallyFailed", "Failed", "Archived"], "indexed": true, "description": "Chỉ tổng hợp khi TOÀN BỘ dòng chi tiết đã kết thúc (Assigned/Failed). Không chuyển tiếp sau khi đã kết thúc, trừ khi sang Archived (7.1)" },
+    { "name": "ProcessedAt", "type": "DateTime" },
+    { "name": "ErrorMessage", "type": "MultiLineText" },
+    { "name": "CompletionNotifiedAt", "type": "DateTime", "addedIn": "v1.4", "description": "Guard chống gửi trùng thông báo hoàn tất (Phụ lục F#2). null lúc tạo cha" }
+  ],
+  "indexes": ["Status", "RequesterUpn"]
+}

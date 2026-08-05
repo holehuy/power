@@ -1,0 +1,20 @@
+{
+  "listName": "IPRequestItems",
+  "description": "List CHI TIẾT đăng ký (6.5) — đơn vị xử lý thực tế của allocation-worker và auto-deletion-worker. SharePoint item ID là khoá duy nhất chính thức (cột ItemId cũ đã bị bãi bỏ ở v1.3).",
+  "columns": [
+    { "name": "ParentItemId", "type": "Number", "required": true, "indexed": true, "description": "SharePoint item ID của IPRequests cha (khoá tham chiếu)" },
+    { "name": "HostName", "type": "Text", "description": "Tùy chọn — null nếu không nhập -> bỏ qua đăng ký DNS. Quy tắc: ^(NKSV|NKNODE|PCD|PCM|PCS|PRT)[0-9]{1,6}$, chuẩn hoá chữ hoa" },
+    { "name": "Purpose", "type": "MultiLineText", "required": true, "maxLength": 200 },
+    { "name": "Status", "type": "Choice", "choices": ["Pending", "Processing", "Assigned", "Failed", "Archived"], "indexed": true },
+    { "name": "RetryCount", "type": "Number", "default": 0, "description": "Gộp chung số lần retry lỗi tạm thời QUA CHU KỲ và số lần thu hồi Processing tồn đọng vào CÙNG 1 counter. Giới hạn 3 (7.1/8.4)" },
+    { "name": "NotificationStage", "type": "Choice", "choices": ["None", "3M-Reminder", "6M-Reminder", "12M-Deleted", "Error"], "description": "Trigger cho Power Automate flow tổng hợp gửi thông báo xóa (7.4, Phụ lục F#4-#6)" },
+    { "name": "NotificationSentAt", "type": "DateTime", "description": "Guard 'đã gửi' của thông báo tổng hợp theo giai đoạn hiện tại — clear khi CHUYỂN giai đoạn (trừ khi ghi đè phục hồi từ Error, 7.4)" },
+    { "name": "AssignedIp", "type": "Text", "indexed": true },
+    { "name": "AssignedFqdn", "type": "Text", "description": "Chỉ có khi có hostname" },
+    { "name": "ProcessedAt", "type": "DateTime" },
+    { "name": "FailureNotifiedAt", "type": "DateTime", "addedIn": "v1.3", "description": "Guard 'đã gửi' thông báo thất bại (Phụ lục F#3)" },
+    { "name": "ErrorCategory", "type": "Choice", "choices": ["DnsDuplicate", "NoFreeIp", "NamingRule", "SystemError", "DnsDuplicateDynamic"], "addedIn": "v1.3", "description": "Worker thiết lập (hoặc Power Apps nếu Failed do tuyến bảo vệ UI) — dùng chọn message ở 8.5" },
+    { "name": "ErrorMessage", "type": "MultiLineText" }
+  ],
+  "indexes": ["Status", "ParentItemId", "AssignedIp"]
+}

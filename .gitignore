@@ -1,0 +1,31 @@
+# PowerShell
+*.ps1xml.bak
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Secrets / local config (never commit real values)
+**/appsettings.local.json
+**/*.secrets.json
+.env
+
+# Power Platform packed binaries (keep only unpacked source under powerplatform/src)
+*.msapp
+*.zip
+
+# IaC local state
+infra/**/.terraform/
+infra/**/*.tfstate*
+
+# Test output
+testResults.xml
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+.vscode/
+*.log

@@ -1,0 +1,19 @@
+{
+  "listName": "ArpDeviceStatus",
+  "description": "List quản lý trạng thái thiết bị thu thập ARP (6.9) — ĐỒNG THỜI là master của thiết bị mục tiêu (arp-collector đọc list này để biết quét gì). Thêm/loại bỏ thiết bị, đổi TargetSegments do team network/infrastructure chỉnh sửa trực tiếp (10.6). Gateway dự phòng VRRP/HSRP: chỉ đăng ký 1 máy đại diện, không đăng ký standby.",
+  "columns": [
+    { "name": "DeviceId", "type": "Text", "required": true, "description": "ID duy nhất, vd: cisco-cat-tomioka-01" },
+    { "name": "DeviceName", "type": "Text", "required": true },
+    { "name": "DeviceFqdn", "type": "Text", "required": true, "description": "Đích kết nối khi thu thập ARP" },
+    { "name": "DeviceType", "type": "Choice", "choices": ["CiscoIOS", "FortiGate", "YamahaRTX", "MerakiMX"], "required": true, "addedIn": "v1.3", "description": "Key điều khiển nhánh thu thập (7.3). Chưa thiết lập/ngoài định nghĩa -> SKIP thu thập, tính vào ConsecutiveFailureCount" },
+    { "name": "MerakiOrgId", "type": "Text", "description": "CHỈ để ghi nhận/vận hành — KHÔNG dùng trong xử lý thu thập (7.3, làm rõ v1.4)" },
+    { "name": "MerakiNetworkId", "type": "Text", "description": "Chỉ dùng cho thiết bị Meraki, 1 thiết bị = 1 network. Dùng gọi /networks/{id}/clients" },
+    { "name": "TargetSegments", "type": "MultiText", "description": "Danh sách CIDR mà thiết bị này phụ trách (forward lookup, dùng cho đối chiếu coverage ARP ở 7.2)" },
+    { "name": "LastSuccessAt", "type": "DateTime" },
+    { "name": "LastAttemptAt", "type": "DateTime" },
+    { "name": "ConsecutiveFailureCount", "type": "Number", "default": 0, "description": "Reset về 0 khi thành công. Đạt 72 (72 giờ liên tục, thu thập mỗi giờ) -> CurrentStatus=Failed" },
+    { "name": "CurrentStatus", "type": "Choice", "choices": ["OK", "Failed"], "default": "OK" },
+    { "name": "LastErrorMessage", "type": "MultiLineText" },
+    { "name": "LastNotifiedAt", "type": "DateTime", "description": "Chống thông báo trùng — nhắc lại mỗi 24h nếu vẫn Failed (7.3)" }
+  ]
+}

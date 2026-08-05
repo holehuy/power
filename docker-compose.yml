@@ -1,0 +1,28 @@
+# Dev-toolchain qua Docker Compose — thay cho `docker build` + `docker run` rời rạc.
+# CHỈ dùng cho lint/test/viết code (Mac/Windows/Linux như nhau). KHÔNG dùng để chạy production
+# Worker: IpamServer/DhcpServer/phần lớn DnsServer cmdlets là tính năng Windows Server role thật,
+# không container hoá được — xem README.md.
+#
+# Dùng trực tiếp:
+#   docker compose run --rm dev pwsh
+#   docker compose run --rm dev pwsh -Command "Invoke-Pester ./tests/powershell -CI"
+# Hoặc qua Makefile: make build / make lint-ps / make test-ps / make test-py / make shell
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ipam-dev-toolchain
+    volumes:
+      - .:/workspace
+      # Named volume (not a host bind mount) so `az login` persists across `docker compose run --rm`
+      # invocations — each run gets a fresh container, but this volume survives. Kept out of the repo
+      # tree on purpose: it holds cached auth tokens and must never end up in git.
+      - az-cli-config:/root/.azure
+    working_dir: /workspace
+    tty: true
+    stdin_open: true
+
+volumes:
+  az-cli-config:

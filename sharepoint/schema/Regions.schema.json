@@ -1,0 +1,10 @@
+{
+  "listName": "Regions",
+  "description": "Master khu vực (6.2). Theo đơn vị tỉnh/thành hoặc quốc gia — cấp 1 của cascade 3 tầng (5.4).",
+  "columns": [
+    { "name": "RegionCode", "type": "Text", "required": true, "description": "Mã khu vực, vd: saitama, gunma, usa" },
+    { "name": "RegionName", "type": "Text", "required": true, "description": "Tên hiển thị, vd: Saitama, Gunma, Mỹ" },
+    { "name": "DisplayOrder", "type": "Number", "description": "Thứ tự hiển thị trong dropdown" },
+    { "name": "IsActive", "type": "Boolean", "default": true, "description": "Cờ hiệu lực" }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "listName": "OfficeLocationMap",
+  "description": "Master chuyển đổi giá trị OfficeLocation (Entra ID) sang RegionCode/SiteCode (6.6) — dùng để ước tính giá trị ban đầu của cascade Khu vực/Cơ sở khi mở form đăng ký (5.4). Duy trì bằng chỉnh sửa trực tiếp SharePoint bởi team network/infrastructure, trigger cập nhật là mỗi khi có email MissLog (10.6).",
+  "columns": [
+    { "name": "OfficeLocation", "type": "Text", "required": true, "description": "Giá trị OfficeLocation của Entra ID — khóa match" },
+    { "name": "RegionCode", "type": "Text", "required": true },
+    { "name": "SiteCode", "type": "Text", "required": true },
+    { "name": "IsActive", "type": "Boolean", "default": true },
+    { "name": "Note", "type": "Text", "description": "Ghi chú: cách ghi cũ, nguồn tích hợp, v.v." }
+  ]
+}

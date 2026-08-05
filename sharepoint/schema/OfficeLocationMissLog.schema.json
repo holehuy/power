@@ -1,0 +1,10 @@
+{
+  "listName": "OfficeLocationMissLog",
+  "description": "Log OfficeLocation không khớp OfficeLocationMap (6.7). Chỉ 1 đăng ký = 1 record (cột BatchSize đã bị xóa, đối tượng I-6). Ghi bởi flow tiếp nhận đăng ký (7.1), phía Power Apps chỉ phát hiện. Chỉ trường hợp OfficeLocation KHÔNG rỗng nhưng không khớp mới gửi thông báo ngay (Phụ lục F#8); giá trị rỗng chỉ ghi log.",
+  "columns": [
+    { "name": "DetectedAt", "type": "DateTime", "required": true },
+    { "name": "OfficeLocation", "type": "Text", "description": "Có thể rỗng — rỗng thì chỉ ghi log, không thông báo ngay" },
+    { "name": "RequesterUpn", "type": "Text", "required": true },
+    { "name": "Resolved", "type": "Boolean", "default": false, "description": "Team network/infrastructure cập nhật sau khi bổ sung map tương ứng" }
+  ]
+}

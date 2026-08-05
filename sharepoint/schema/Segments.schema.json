@@ -1,0 +1,32 @@
+{
+  "listName": "Segments",
+  "description": "Source of Truth của master segment (6.3). Đăng ký TOÀN BỘ segment bất kể có DHCP scope hay không. Chỉ record DhcpScopeExists=true được segment-sync-worker cập nhật các cột nguồn DHCP mỗi 30 phút; UsageCount/CapacityTotal/các cột nguồn coverage cập nhật cho TOÀN BỘ segment không phân biệt DhcpScopeExists (7.2).",
+  "columns": [
+    { "name": "SegmentName", "type": "Text", "required": true, "description": "Tên logic, vd: Trung tâm sản xuất Tomioka - segment server" },
+    { "name": "SiteCode", "type": "Text", "required": true, "indexed": true, "description": "Mã cơ sở, cấp 2 cascade (5.4)" },
+    { "name": "SiteName", "type": "Text", "required": true, "description": "Tên hiển thị cơ sở" },
+    { "name": "RegionCode", "type": "Text", "indexed": true, "description": "Cột index thêm ở v1.3 (Q45), dùng cho delegation Power Apps" },
+    { "name": "CIDR", "type": "Text", "required": true, "description": "CIDR của segment. CẤM thay đổi trực tiếp — khi cần đổi: IsActive=false record cũ + tạo record mới (10.3)" },
+    { "name": "DhcpServer", "type": "Text", "description": "Server DHCP đại diện để truy vấn (nkdc1 trong nước / nkdc4 nước ngoài) — KHÔNG phải partner server (2.2)" },
+    { "name": "DhcpScopeExists", "type": "Boolean", "required": true, "description": "true = có scope DHCP thật, được Worker đồng bộ; false = duy trì giá trị thủ công" },
+    { "name": "DhcpScopeName", "type": "Text", "description": "Tên scope, CHỈ để hiển thị/ghi nhận — KHÔNG dùng làm key đối chiếu (7.2, vì tên do người đặt có thể đổi)" },
+    { "name": "StaticIpRangeStart", "type": "Text", "description": "Điểm đầu dải IP cố định (tính từ 7.2)" },
+    { "name": "StaticIpRangeEnd", "type": "Text", "description": "Điểm cuối dải IP cố định" },
+    { "name": "StaticIpRangeRaw", "type": "MultiLineText", "description": "Bản chính (raw) của dải IP cố định — chính bản dùng khi có nhiều dải rời rạc, chuẩn hoá ở v1.3" },
+    { "name": "Gateway", "type": "Text" },
+    { "name": "SubnetMask", "type": "Text" },
+    { "name": "DnsServers", "type": "Text", "description": "Lấy từ DHCP option 006 (7.2). Cột di chuyển ở v1.4 — vị trí ngay sau SubnetMask" },
+    { "name": "UsageCount", "type": "Number", "description": "Số IP đang dùng trong dải IP cố định (Get-IpamAddress). Cập nhật cho TOÀN BỘ segment, không phân biệt DhcpScopeExists" },
+    { "name": "CapacityTotal", "type": "Number", "description": "Tổng dung lượng dải IP cố định. Với DhcpScopeExists=false, tính trực tiếp từ CIDR (7.2)" },
+    { "name": "LastSyncedAt", "type": "DateTime" },
+    { "name": "AlertLastNotifiedAt", "type": "DateTime", "description": "Guard chống gửi trùng cảnh báo ngưỡng IP trống (Phụ lục F#9), clear khi phục hồi >= 21" },
+    { "name": "IsActive", "type": "Boolean", "required": true, "default": true, "description": "false khi scope bị xoá — vẫn giữ record như lịch sử, không xoá IPAM range (3.1/7.2)" },
+    { "name": "CoverageStatus", "type": "Choice", "choices": ["Covered", "Uncovered"], "addedIn": "v1.4", "description": "Kết quả đối chiếu coverage ARP (7.2), chỉ cập nhật cho segment IsActive=true" },
+    { "name": "CoverageCheckedAt", "type": "DateTime", "addedIn": "v1.4" },
+    { "name": "CoverageNotifiedAt", "type": "DateTime", "addedIn": "v1.4", "description": "Guard hạn chế thông báo coverage 1 lần/ngày (Phụ lục F#11)" },
+    { "name": "RangeChangePending", "type": "Boolean", "addedIn": "v1.4", "default": false, "description": "true = đang thay đổi dải IP cố định, chặn cấp phát mới + đăng ký AutoDetected mới (7.1/7.2/7.3/10.3)" },
+    { "name": "LastSkipDate", "type": "DateOnly", "addedIn": "v1.4", "description": "Ngày gần nhất segment này bị loại trừ khỏi tự động xóa" },
+    { "name": "SkippedDays", "type": "Number", "addedIn": "v1.4", "description": "Tích luỹ VĨNH VIỄN theo vòng đời segment (không reset) — hiệu chỉnh số ngày đã trôi qua khi phán định xóa (6.8-2/7.4)" }
+  ],
+  "indexes": ["SiteCode", "RegionCode"]
+}

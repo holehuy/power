@@ -1,0 +1,30 @@
+{
+  "_comment": "KHÔNG phải SharePoint list — đây là 4 custom field của Windows IPAM (6.1/6.8), ghi ở đây để cùng chỗ tham chiếu với schema SharePoint khi build allocation-worker/auto-deletion-worker. Tạo bằng Add-IpamCustomField (chỉ 1 lần, xem 8.3).",
+  "target": "Windows IPAM (Add-IpamCustomField / Add-IpamCustomValue)",
+  "fields": [
+    {
+      "name": "Source",
+      "type": "Multi-value",
+      "values": ["Requested", "AutoDetected", "Cooldown"],
+      "description": "Cooldown là giá trị GÁN THÊM (multi-value), không thay thế giá trị gốc — dùng để biết nguồn gốc Requested/AutoDetected khi khôi phục (Phụ lục F#14)."
+    },
+    {
+      "name": "RequestId",
+      "type": "Free form",
+      "description": "AutoDetected: để trống. Requested (đơn vị chi tiết): 'REQ-yyyymmdd-{ID item cha}-{ID item chi tiết}'. Auto-deletion-worker trích ID item chi tiết từ giá trị này để reverse-lookup IPRequestItems (7.4)."
+    },
+    {
+      "name": "LastSeenAt",
+      "type": "Free form",
+      "format": "ISO 8601 kèm offset JST, vd 2026-07-03T14:00:00+09:00",
+      "description": "Khởi tạo = thời điểm cấp phát khi Assigned (7.1). Cập nhật mỗi lần ARP thấy IP còn sống, throttle 24h khi entry không Cooldown (7.3)."
+    },
+    {
+      "name": "CooldownStartedAt",
+      "type": "Free form",
+      "format": "ISO 8601 kèm offset JST",
+      "addedIn": "v1.4",
+      "description": "Set cùng lúc gán Cooldown vào Source. PHẢI clear khi khôi phục (cả tự động lẫn IT thủ công, 10.7). Dùng làm mốc cho sub-flow hết hạn Cooldown (+31 ngày, 7.4)."
+    }
+  ]
+}

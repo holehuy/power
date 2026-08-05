@@ -1,0 +1,6 @@
+# Thiết kế 8.3 — cố định version trong venv, không cài global (Phụ lục E).
+pysnmp>=6.1,<7
+meraki>=1.44,<2
+msal>=1.28,<2
+netmiko>=4.3,<5      # dự phòng tự động hoá tương lai (8.3) — triển khai ban đầu ưu tiên SNMP, chưa dùng ngay
+ntc-templates>=4.4,<5

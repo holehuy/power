@@ -1,0 +1,38 @@
+{
+  "_comment": "Tham số ngoài theo yêu cầu 'Externalize ngưỡng ngày' (8.4). Mọi giá trị *Days phải >= 7 (guard tối thiểu, kiểm tra bởi Get-ExternalThreshold trong IpamWorkerCommon.psm1). Rút ngắn giá trị này khi test hành vi phụ thuộc thời gian lúc nghiệm thu.",
+
+  "autoDetectedDeletionDays": 30,
+  "_autoDetectedDeletionDays_note": "10.2/A-3: dùng initialRolloutAutoDetectedDeletionDays trong giai đoạn vận hành ban đầu, chuyển về giá trị này sau khi số lượng chuyển Cooldown hội tụ về mức định thường (event log quan sát).",
+  "initialRolloutAutoDetectedDeletionDays": 90,
+
+  "requestedReminder3MonthDays": 90,
+  "requestedReminder6MonthDays": 180,
+  "requestedDeletionDays": 365,
+
+  "cooldownDays": 30,
+  "cooldownConfirmationDays": 1,
+  "_cooldown_note": "Hiệu lực thực tế = cooldownDays + cooldownConfirmationDays = 31 ngày (Phụ lục A/B).",
+
+  "processingStuckMinutes": 30,
+  "rangeChangePendingStaleHours": 24,
+
+  "freeIpAlertThresholdCount": 20,
+  "freeIpAlertClearThresholdCount": 21,
+
+  "arpDeviceConsecutiveFailureThreshold": 72,
+  "_arpDeviceConsecutiveFailureThreshold_note": "Số chu kỳ thất bại liên tiếp (thu thập mỗi giờ => 72 = 72 giờ, 7.3).",
+
+  "retryCountMax": 3,
+
+  "graphApiBackoffInitialSeconds": 2,
+  "graphApiBackoffMultiplier": 2,
+  "graphApiBackoffMaxAttempts": 3,
+
+  "snmpTimeoutSeconds": 5,
+  "snmpRetries": 2,
+  "snmpParallelism": 1,
+
+  "ipEntryMutexTimeoutSeconds": 10,
+
+  "minimumGuardDays": 7
+}
