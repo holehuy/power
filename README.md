@@ -82,7 +82,8 @@ Full explanation of every folder, coding conventions, rollout order, and how to 
 | Component | Version | Used for |
 |---|---|---|
 | Windows PowerShell | 5.1 (IPAM module compatibility) | **Production workers only, on a real Windows Server** — cannot be containerized, see limitation below |
-| Python | 3.11+ | ARP collection worker |
+| MSAL.PS | latest | `SharePointClient.psm1` — Graph API cert-based auth (`Connect-SharePointGraph`). Not yet added to `infra/scripts/bootstrap-vm.ps1` — see `docs/open-questions.md` § E |
+| Python | 3.11+ | ARP collection worker. `pywin32` (Windows-only, guarded by an environment marker in `requirements.txt`) backs DPAPI secret storage — see `arp_collector/secret_store.py` |
 | Az CLI / Bicep | latest | Provisioning the Azure VM, Backup vault |
 | PnP.PowerShell | latest | Provisioning the 7 SharePoint lists |
 | Power Platform CLI (`pac`) | latest | Pack/unpack the Power Apps + Power Automate solution |

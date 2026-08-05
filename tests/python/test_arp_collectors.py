@@ -59,6 +59,7 @@ def test_collection_failure_is_logged_not_swallowed_silently():
 
     with patch.object(arp_main.device_registry, "get_target_devices", return_value=[device]), \
          patch.object(arp_main.device_registry, "upsert_device_status") as mock_upsert, \
+         patch.object(arp_main.secret_store, "get_device_secret", return_value="public-ro"), \
          patch.dict(arp_main.DEVICE_TYPE_DISPATCH, {"CiscoIOS": failing_collect}), \
          patch.object(arp_main, "write_result"):
         arp_main.run()
@@ -78,9 +79,45 @@ def test_successful_collection_marks_device_ok_and_writes_entries():
 
     with patch.object(arp_main.device_registry, "get_target_devices", return_value=[device]), \
          patch.object(arp_main.device_registry, "upsert_device_status") as mock_upsert, \
+         patch.object(arp_main.secret_store, "get_device_secret", return_value="public-ro"), \
          patch.dict(arp_main.DEVICE_TYPE_DISPATCH, {"CiscoIOS": fake_collect}), \
          patch.object(arp_main, "write_result") as mock_write:
         arp_main.run()
 
     mock_upsert.assert_called_once_with("test-device-01", success=True)
     mock_write.assert_called_once_with([fake_entry])
+    fake_collect.assert_called_once_with(device, secret="public-ro")
+
+
+def test_upsert_failure_does_not_abort_remaining_devices():
+    """QA (main.py): nếu chính upsert_device_status() (ghi Graph API) lỗi — vd Graph API down —
+    các thiết bị còn lại trong chu kỳ vẫn phải được xử lý (8.4: cô lập sự cố theo đơn vị thiết bị,
+    không phải theo đơn vị chu kỳ). Đây là hành vi được thêm khi implement device_registry.py thật
+    (trước đó upsert_device_status luôn raise NotImplementedError nên rủi ro này bị che khuất)."""
+    device_ok = _make_device("CiscoIOS")
+    device_ok.device_id = "device-ok"
+    device_broken = _make_device("CiscoIOS")
+    device_broken.device_id = "device-broken"
+
+    fake_entry = ArpEntry(
+        ip_address="10.0.0.5", mac_address="aa:bb:cc:dd:ee:ff",
+        observed_at=datetime.now(timezone.utc), device_id="device-ok",
+    )
+    fake_collect = MagicMock(return_value=[fake_entry])
+
+    def upsert_side_effect(device_id, **kwargs):
+        if device_id == "device-broken":
+            raise RuntimeError("Graph API 503")
+
+    with patch.object(arp_main.device_registry, "get_target_devices", return_value=[device_broken, device_ok]), \
+         patch.object(arp_main.device_registry, "upsert_device_status", side_effect=upsert_side_effect) as mock_upsert, \
+         patch.object(arp_main.secret_store, "get_device_secret", return_value="public-ro"), \
+         patch.dict(arp_main.DEVICE_TYPE_DISPATCH, {"CiscoIOS": fake_collect}), \
+         patch.object(arp_main, "write_result") as mock_write:
+        arp_main.run()  # KHÔNG được raise ra ngoài dù device-broken lỗi ở giữa danh sách
+
+    assert mock_upsert.call_count == 2
+    # entries đã thu thập được (kể cả của device-broken) vẫn phải ra JSON — lỗi ghi ArpDeviceStatus
+    # KHÔNG được làm mất dữ liệu ARP thật đã quét thành công (2 thiết bị, cùng fake_collect trả về
+    # 1 entry giống nhau -> danh sách 2 phần tử).
+    mock_write.assert_called_once_with([fake_entry, fake_entry])

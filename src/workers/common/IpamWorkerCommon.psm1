@@ -142,6 +142,86 @@ function Get-ExternalThreshold {
     return $value
 }
 
+# --- IP / CIDR / dải tĩnh (dùng chung reflect-to-ipam ARP 7.3 + auto-deletion-worker 7.4-3) ---
+
+function ConvertTo-UInt32IpAddress {
+    <#
+    .SYNOPSIS
+        Chuyển 1 địa chỉ IPv4 dạng chuỗi sang uint32 (big-endian) để so sánh/tính bitmask.
+    #>
+    param([Parameter(Mandatory)] [string]$IpAddress)
+    $bytes = [System.Net.IPAddress]::Parse($IpAddress).GetAddressBytes()
+    if ($bytes.Length -ne 4) { throw "Chỉ hỗ trợ IPv4: $IpAddress" }
+    if ([System.BitConverter]::IsLittleEndian) { [Array]::Reverse($bytes) }
+    return [BitConverter]::ToUInt32($bytes, 0)
+}
+
+function Test-IpAddressInCidr {
+    param(
+        [Parameter(Mandatory)] [string]$IpAddress,
+        [Parameter(Mandatory)] [string]$Cidr
+    )
+    $cidrParts = $Cidr -split '/', 2
+    if ($cidrParts.Count -ne 2) { throw "CIDR không hợp lệ (thiếu prefix length): $Cidr" }
+    $prefixLength = [int]$cidrParts[1]
+    if ($prefixLength -eq 0) { return $true }
+    $mask = [uint32]([uint32]::MaxValue -shl (32 - $prefixLength))
+    $ipValue = ConvertTo-UInt32IpAddress -IpAddress $IpAddress
+    $networkValue = ConvertTo-UInt32IpAddress -IpAddress $cidrParts[0]
+    return ($ipValue -band $mask) -eq ($networkValue -band $mask)
+}
+
+function Test-IpAddressInRange {
+    param(
+        [Parameter(Mandatory)] [string]$IpAddress,
+        [Parameter(Mandatory)] [string]$RangeStart,
+        [Parameter(Mandatory)] [string]$RangeEnd
+    )
+    $ipValue = ConvertTo-UInt32IpAddress -IpAddress $IpAddress
+    $startValue = ConvertTo-UInt32IpAddress -IpAddress $RangeStart
+    $endValue = ConvertTo-UInt32IpAddress -IpAddress $RangeEnd
+    return ($ipValue -ge $startValue) -and ($ipValue -le $endValue)
+}
+
+function ConvertFrom-StaticIpRangeRaw {
+    <#
+    .SYNOPSIS
+        Parse Segments.StaticIpRangeRaw (6.3: "bản chính, JSON, hỗ trợ nhiều dải rời rạc").
+
+    QA (đã thêm vào docs/open-questions.md): schema JSON chính xác của cột này CHƯA được đặc tả
+    tường minh trong thiết kế gốc — chỉ nói "hỗ trợ nhiều dải rời rạc". Giả định ở đây: mảng các
+    object {start,end}, vd '[{"start":"10.11.20.10","end":"10.11.20.200"}]'. Xác nhận với đội
+    build segment-sync-worker (nơi SINH ra cột này ở Get-FixedIpRange, 7.2) trước khi build/test
+    tích hợp thật với dữ liệu Segments thật.
+    #>
+    param([string]$Raw)
+    if ([string]::IsNullOrWhiteSpace($Raw)) { return @() }
+    return @($Raw | ConvertFrom-Json)
+}
+
+function Test-IpAddressInStaticRange {
+    <#
+    .SYNOPSIS
+        1 IP có nằm trong dải IP CỐ ĐỊNH của 1 segment hay không — đúng quy tắc phân loại ở đầu
+        7.3: segment DhcpScopeExists=true dùng StaticIpRangeRaw (bản chính) làm căn cứ, false
+        dùng TOÀN BỘ CIDR. KHÔNG dùng CIDR cho segment có scope (CIDR còn bao gồm cả dynamic pool
+        mà ARP/xóa tự động phải bỏ qua).
+    #>
+    param(
+        [Parameter(Mandatory)] [string]$IpAddress,
+        [Parameter(Mandatory)] [object]$Segment
+    )
+    if ($Segment.DhcpScopeExists) {
+        foreach ($range in (ConvertFrom-StaticIpRangeRaw -Raw $Segment.StaticIpRangeRaw)) {
+            if (Test-IpAddressInRange -IpAddress $IpAddress -RangeStart $range.start -RangeEnd $range.end) {
+                return $true
+            }
+        }
+        return $false
+    }
+    return Test-IpAddressInCidr -IpAddress $IpAddress -Cidr $Segment.CIDR
+}
+
 # --- Logging (Event Log + file log — 8.3/8.4) ------------------------------------------------
 
 function Write-WorkerLog {
@@ -174,4 +254,9 @@ Export-ModuleMember -Function `
     Invoke-WithExponentialBackoff, `
     Get-ElapsedDaysWithSkipCorrection, `
     Get-ExternalThreshold, `
-    Write-WorkerLog
+    Write-WorkerLog, `
+    ConvertTo-UInt32IpAddress, `
+    Test-IpAddressInCidr, `
+    Test-IpAddressInRange, `
+    ConvertFrom-StaticIpRangeRaw, `
+    Test-IpAddressInStaticRange

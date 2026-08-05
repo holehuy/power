@@ -4,3 +4,9 @@ meraki>=1.44,<2
 msal>=1.28,<2
 netmiko>=4.3,<5      # dự phòng tự động hoá tương lai (8.3) — triển khai ban đầu ưu tiên SNMP, chưa dùng ngay
 ntc-templates>=4.4,<5
+requests>=2.31,<3    # HTTP client cho Graph API (msal chỉ lo lấy token, không tự gọi Graph) — bổ sung khi implement graph_client.py
+pywin32>=306; sys_platform == "win32"  # DPAPI cho secret_store.py (Phụ lục E). Marker "win32" là bắt buộc,
+                                       # KHÔNG chỉ là ghi chú: pywin32 không có wheel cho Linux/Mac nên
+                                       # `pip install -r requirements.txt` sẽ FAIL trong dev-toolchain Docker
+                                       # (README.md) nếu thiếu marker này — secret_store.py đã lazy-import
+                                       # win32crypt trong hàm nên module vẫn import được để lint/test trên Linux.

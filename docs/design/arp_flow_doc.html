@@ -1,0 +1,778 @@
+<title>7.3 ARP収集・自動登録フロー / ARP Collection Flow / Luồng thu thập ARP</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --surface-2: #eceff2;
+    --ink: #1a2129;
+    --muted: #5b6472;
+    --border: #dde1e6;
+    --accent: #2f6f68;
+    --accent-ink: #ffffff;
+    --amber-bg: #fdf3d9; --amber-line: #b8912b; --amber-ink: #6b5310;
+    --blue-bg: #e2ecf8;  --blue-line: #5c84ae;  --blue-ink: #294863;
+    --green-bg: #e2f0e4; --green-line: #5f9a6a; --green-ink: #275c33;
+    --purple-bg: #ede3f3; --purple-line: #8b64a8; --purple-ink: #4d2f63;
+    --red-bg: #fbe3e0;   --red-line: #c06a5c;   --red-ink: #7a2e22;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10141a;
+      --surface: #171d26;
+      --surface-2: #1e2530;
+      --ink: #e7eaee;
+      --muted: #93a0af;
+      --border: #2a3240;
+      --accent: #5fb3a8;
+      --accent-ink: #0b1512;
+      --amber-bg: #35301a; --amber-line: #c9a53f; --amber-ink: #ecd48b;
+      --blue-bg: #1c2c3e;  --blue-line: #6d93ba;  --blue-ink: #aecbe6;
+      --green-bg: #1c3324; --green-line: #6faf7c; --green-ink: #a9d7b4;
+      --purple-bg: #2c2038; --purple-line: #a17cc0; --purple-ink: #d3b6e8;
+      --red-bg: #3a231f;   --red-line: #d18576;   --red-ink: #efb3a7;
+    }
+  }
+  :root[data-theme="dark"] {
+      --bg: #10141a; --surface: #171d26; --surface-2: #1e2530; --ink: #e7eaee; --muted: #93a0af; --border: #2a3240;
+      --accent: #5fb3a8; --accent-ink: #0b1512;
+      --amber-bg: #35301a; --amber-line: #c9a53f; --amber-ink: #ecd48b;
+      --blue-bg: #1c2c3e;  --blue-line: #6d93ba;  --blue-ink: #aecbe6;
+      --green-bg: #1c3324; --green-line: #6faf7c; --green-ink: #a9d7b4;
+      --purple-bg: #2c2038; --purple-line: #a17cc0; --purple-ink: #d3b6e8;
+      --red-bg: #3a231f;   --red-line: #d18576;   --red-ink: #efb3a7;
+  }
+  :root[data-theme="light"] {
+      --bg: #f4f5f7; --surface: #ffffff; --surface-2: #eceff2; --ink: #1a2129; --muted: #5b6472; --border: #dde1e6;
+      --accent: #2f6f68; --accent-ink: #ffffff;
+      --amber-bg: #fdf3d9; --amber-line: #b8912b; --amber-ink: #6b5310;
+      --blue-bg: #e2ecf8;  --blue-line: #5c84ae;  --blue-ink: #294863;
+      --green-bg: #e2f0e4; --green-line: #5f9a6a; --green-ink: #275c33;
+      --purple-bg: #ede3f3; --purple-line: #8b64a8; --purple-ink: #4d2f63;
+      --red-bg: #fbe3e0;   --red-line: #c06a5c;   --red-ink: #7a2e22;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+  }
+  [hidden] { display: none !important; }
+
+  .page {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 24px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  .langbar {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .langswitch {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    padding: 3px;
+    gap: 2px;
+  }
+  .langswitch button {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 7px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+  }
+  .langswitch button[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  .langswitch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    margin: 8px 0 0;
+    font-size: clamp(24px, 4vw, 34px);
+    font-weight: 700;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    margin-top: 18px;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  .meta-row strong { color: var(--ink); font-weight: 600; }
+
+  .cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 28px;
+  }
+  .cta-copy { font-size: 16px; font-weight: 600; }
+  .cta-copy .sub { display: block; font-size: 13px; font-weight: 500; color: var(--muted); font-family: var(--mono); margin-top: 3px; }
+  .btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14.5px;
+    padding: 13px 22px;
+    border-radius: 9px;
+    transition: filter 0.15s ease, transform 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  section h2 {
+    font-size: 12px;
+    font-family: var(--mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .phase-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+  }
+  .phase-card {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--line);
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .phase-card .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--ink-tone);
+    text-transform: uppercase;
+  }
+  .phase-card .name { font-weight: 700; font-size: 15px; }
+  .phase-card ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .p-trigger { --line: var(--amber-line); --card-bg: var(--amber-bg); --ink-tone: var(--amber-ink); }
+  .p-python  { --line: var(--blue-line);  --card-bg: var(--blue-bg);  --ink-tone: var(--blue-ink); }
+  .p-reflect { --line: var(--green-line); --card-bg: var(--green-bg); --ink-tone: var(--green-ink); }
+  .p-final   { --line: var(--purple-line);--card-bg: var(--purple-bg);--ink-tone: var(--purple-ink); }
+
+  .rules {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .rule {
+    display: grid;
+    grid-template-columns: 128px 1fr;
+    gap: 16px;
+    padding: 16px 20px;
+  }
+  .rule + .rule { border-top: 1px solid var(--border); }
+  .rule .ref {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--accent);
+    font-weight: 600;
+    padding-top: 2px;
+  }
+  .rule .body { font-size: 14px; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .swatch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 14px 6px 8px;
+    font-size: 12.5px;
+    background: var(--surface);
+  }
+  .swatch .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--dot-line); background: var(--dot-bg); flex-shrink: 0; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  footer code {
+    font-family: var(--mono);
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  @media (max-width: 560px) {
+    .rule { grid-template-columns: 1fr; gap: 4px; }
+    .rule .ref { padding-top: 0; }
+  }
+
+  .catalog-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin: -8px 0 4px;
+  }
+  .catalog-toolbar button {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .catalog-toolbar button:hover { color: var(--ink); border-color: var(--accent); }
+
+  .step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .step-card {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--line);
+    background: var(--surface);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .step-card summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    background: var(--card-bg);
+  }
+  .step-card summary::-webkit-details-marker { display: none; }
+  .step-card summary .chev {
+    margin-left: auto;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+  }
+  .step-card[open] summary .chev { transform: rotate(90deg); }
+  .step-card summary .id {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-tone);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 8px;
+    flex-shrink: 0;
+  }
+  .step-card summary .sname { font-weight: 700; font-size: 14.5px; }
+  .step-card summary .spurpose { font-size: 12.5px; color: var(--muted); }
+  .step-fields {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    border-top: 1px solid var(--border);
+  }
+  .step-field-row {
+    display: contents;
+  }
+  .step-field-row .flabel {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+  .step-field-row:first-child .flabel { border-top: none; }
+  .step-field-row .fvalue {
+    font-size: 13.5px;
+    padding: 10px 18px;
+    border-top: 1px solid var(--border);
+    line-height: 1.5;
+  }
+  .step-field-row:first-child .fvalue { border-top: none; }
+
+  @media (max-width: 640px) {
+    .step-fields { grid-template-columns: 1fr; }
+    .step-field-row .flabel { border-top: 1px solid var(--border); padding-bottom: 2px; }
+    .step-field-row .fvalue { padding-top: 2px; }
+  }
+</style>
+
+<div class="page">
+
+  <div class="langbar">
+    <div class="langswitch" role="group" aria-label="Language / 言語 / Ngôn ngữ">
+      <button type="button" class="lang-btn" data-lang-btn="ja" aria-pressed="true">日本語</button>
+      <button type="button" class="lang-btn" data-lang-btn="en" aria-pressed="false">EN</button>
+      <button type="button" class="lang-btn" data-lang-btn="vi" aria-pressed="false">Tiếng Việt</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="eyebrow">
+      <span data-lang="ja">内部設計ドキュメント</span>
+      <span data-lang="en">Internal Design Document</span>
+      <span data-lang="vi">Tài liệu thiết kế nội bộ</span>
+    </div>
+    <h1>
+      <span data-lang="ja">7.3 ARP収集・自動登録フロー（1時間ごと）</span>
+      <span data-lang="en">7.3 ARP Collection and Auto-Registration Flow (hourly)</span>
+      <span data-lang="vi">7.3 Luồng thu thập ARP và đăng ký tự động (mỗi 1 giờ)</span>
+    </h1>
+    <div class="meta-row">
+      <span data-lang="ja"><strong>実行間隔：</strong>毎時00分</span>
+      <span data-lang="en"><strong>Interval:</strong> hourly, at :00</span>
+      <span data-lang="vi"><strong>Chu kỳ:</strong> mỗi giờ, phút 00</span>
+      <span data-lang="ja"><strong>実行主体：</strong>Python → PowerShell（同一Task Schedulerジョブ内で連続実行）</span>
+      <span data-lang="en"><strong>Runner:</strong> Python → PowerShell (sequential, same Task Scheduler job)</span>
+      <span data-lang="vi"><strong>Thực thi:</strong> Python → PowerShell (nối tiếp, cùng 1 Task Scheduler job)</span>
+      <span data-lang="ja"><strong>ロック：</strong>ArpCollectionJob.lock（2フェーズ共通）</span>
+      <span data-lang="en"><strong>Lock:</strong> ArpCollectionJob.lock (shared across both phases)</span>
+      <span data-lang="vi"><strong>Lock:</strong> ArpCollectionJob.lock (dùng chung cho cả 2 giai đoạn)</span>
+    </div>
+  </header>
+
+  <div class="cta">
+    <div class="cta-copy">
+      <span data-lang="ja">クリックしてフロー図を draw.io で開く</span>
+      <span data-lang="en">Click to open the flow diagram in draw.io</span>
+      <span data-lang="vi">Bấm để mở sơ đồ luồng trong draw.io</span>
+      <span class="sub" data-lang="ja">図のラベルは日本語版で表示されます</span>
+      <span class="sub" data-lang="en">Diagram labels open in English</span>
+      <span class="sub" data-lang="vi">Nhãn trong sơ đồ sẽ hiển thị bằng tiếng Việt</span>
+    </div>
+    <a class="btn" id="drawio-btn" href="https://app.diagrams.net/?pv=0&grid=0#create=%7B%22type%22%3A%20%22mermaid%22%2C%20%22compressed%22%3A%20true%2C%20%22data%22%3A%20%22vVtdc5s8Fv41XOYdEGDgEmTcyW6cepzsvLuXGMsJW9d4MWmam%2Fe3r44khIRkmXQ7m2Y6roWOzsdzPkUPx%2Fa9fq263kP%2B89Lzc%2FhFvvx9vn9%2BKL248BBK%2FgjpF%2Fl245Wxl668tPTKzMsKL114ZeiloVcUXpl6aeLlOXum8LLYKxMvy9hS5qXYK5B4GJbYh3w5bMdeuYK%2F0zTwygVsSxE7g34O2UOBl0XiQ54OT2eUOS%2B2ML8sAsZ6Sh%2FIu%2FOS%2FGhq8tRX%2FdvFC%2FGu89DKC8snKj7ZtM2pHxjK2QfkFZn4JgUKHsrEKdoRSB7xRF6%2Bk1P%2FG2mHkvb9Jl8rdP9sTvv2%2FUIfeiLdD9JdI7HiCkB%2Fe%2Fr6CJYoYi%2FzmW5LL8O6JZCXB8OHaGC3UA6tuvNd3R6PpO6b9nTXkcvbsf%2Fj35f2NBpAOfsx8JICfhE6fWsudyfSv7fdN4UgcESPKkqGloWXxk%2Fr542uKfoBK%2FhgIqTsA0UCtS89OVnCr2H9y9vupavOr6CkLz7Xw6jziTm0QySY2VEFB3PKcM4%2BgHpiL6cqzK2SPwdgtPFAau2VbnZ6oPFNMWi%2FkNzFU6byDDyMqqBIFA8TTgN2zblfCufxfYV13VkoWiZMcyCPKJ7idLBHGg64SYZnkoG9ZPoMcMWiRcaUR00NuyTDfHusw04qh%2BEPtjMZaCDI%2FSFa%2BDQEbKvTC8Gv8PeGnPbN6QUepviGXYwOfcyMEarMIcfn8rU%2BP9XtmZQ%2Fm0sPbuWFKwGtyY5osGsMoY9jgyHhfsPgTPUfDYuIEVoCAGnQaer7M2N5W73rNlt6echshhkOnRzHv3Q%2Bvl9uhSYhblLPWUJItZ3wEHCdTKOzMKmC3Azdsi3FyOoqlmXaMCkL0AUsNPCwvxrC%2FuoWY7cCGih6wY6IGasrTeOmxRPdk6UDL23%2BwChlPGJQD1wKU2TlYKcVODDlC2JYBK4OdKTOYuAUtmeQRmG76e00H6YsjXLkIDdgqGPcCI0bLt%2Fmo3%2BlkXyqwUQ3G2KQE1LaawEbFxuRh6ZZmNs0lf7KjELtCHZPISLmrBKgYQ8UF0NUy9M58FOk4bpmwQMgtwAfk8AwzZkP5ixCGWmu8DCpRviHQkGaDviRPbupNkhEI6ah548zsecbA6KbUITux7W1OBM6OX9cTt%2FPIw%2BDGZvzI%2Bmf283rx6Wpq%2BNztTsSl46tvId7LWyMNaGUfqErJhBpnOp1hNTqinwHLX2P6MyMBDloHcocMzzoEq%2FJvql%2BTVyRBtakq741UKtVl9ddW3V7KJE39xq9LBj4CxioYvDtIh8gpEQNtBJFEk1BK077kX9xTwmv6mPDMrOVIyUxWIpzzsucCCYg%2F1Bd%2BrLr2m5NLpfqhSjwTgHtWaoU9Hr8Knj1Ho8FgkzI%2BUJ3rqFAmLq8001kQDadkqkWDkkAAEL2a25qlsOGt40mEmqxBTDQ7T%2FOF0KbKCBFE280JBnfLkE6%2BMoCDsx4lZYzUZx%2BkHHJ8VvXUSAMnczy698lf7g9XUj91jc%2FyKpqjm8dwe2b6D6AT98IU7IhKSy1mz2Wi2L61lke4vW5hYKoMa5RCJcJEtagKgSccRsOyhkAlyBbn5iBKiCMUwMvRDKewtKV8TcBsusZeCT7qSfkSx0vYAat4RGenwrO4LEEpMhjzXMACWq94PSBQFSuCVLcOwV503gIr6mSv9Q8GwiITwuUq9xBLHhs%2B%2BbQkH3eKwlkmr1RZLNHBNgCcqzeSXOli2OWTcsbsA8iLfzLzjArp%2BXdGFZ8mzxSU9mglwhaM1ENDGFPFVXumOfYgYzC1sODgffgamIJFtfjuLV%2FB%2FbuedpfsqjMivt0ORyY6AQi1h8Iw8I%2BBCsZWkPnIT6LXgR0yC3FuKGKynjGXjJnlIbmflrcQmyijiJkDuSBrzAKNxVjYBg2ABk9KRnNQVUE6uUGGuK7KJ1LJfOWUxNQRfxaxbwVFXP7TrqnV3I8fqpq5pJw6y4Z3ynUpjZWtoF5krHRPlhQ3STRxx5DXTJtR5RYBMlzaFBS3znEEJMbDW6W%2BDs5S1p1oJTaCgNVjt9cbG%2FRkIPVQWXOvEPXmlZbTqQthQA8Ck7TkzHhCW1cGk07uGEqwhTUNdHQFy5sD7sy2TYcg8m0xJIkZSwAWF4Z1hYFBMYnQk65rcgZtDHjnCvWEBH%2BU3jIy%2FVbT35%2Btnbfihj9hfR39%2Bfqe77fd7TGVQCcsDlJwvCPrw35tosBQKbOEghqBWs2UwYvq3Eq4d0eoueiDGYvipKVzAMKxEomMSOvZN00jTJoEjFdlhrSh6R%2F8l3LG8aqkGQcccaf2reuJmZBgNv2uG%2FfT1rqlZimkVsyr9TYgli4zN%2F6dkl6UvfuqsvOZCiZDDmTAzO0nuv6SXq3hk4E0xU78UgSjzjxLfnPG7n09%2Fv%2FgWishKR4qMMB55p680KcRfZ6m6kMPuV1ichEwRDXlEmaGrHs%2BBSlyJVilvlYzsdosk6%2FVt6yGlDpGVd3QXQDZbtAUcekVBV6mfjL%2F6EW3e4E9q%2B46owicbsLxwbWHkiN2cA0l4SW5n0aIGXsREocuKLrWuj6wof%2FckBzf8lr6M6oMx6q44VMOwrbfNYylg%2BXffdGbmi2RopauDZS6OVhQGtNS1znrIKHaJaw3i7TR%2BvqqM99zSDdhad4Vj%2FCeIFjpbw5ltjWwqw0nxh55UbJdSXiuY5bC4utc6yM0%2FgdQm7rTF26XwvVM2Iy36g1uj9qLUOikYBORPo1R0Hg7GhllcCxs7ohYagk2NjwDurjxSD8JFFKxp0yRwrceGJUvVApd8fLA6PYLlbTMiXjCIqGO%2FB48EsAl86vDEFG62JVh8gOEitKFnDK6Y7iCYC%2FWAxFP2%2BtFsySMm98Lq6HN8yafKJFHg6a7xe3u7dyOF%2F2thGARdzu6uND2wll8Ftq1RSCjbj3YwHGepZwzOG%2BfwLILLt%2B8lKJ%2FdLaV0a3WT4d1JoIz%2F0rlKFVhObh7k%2BKLNIN343XWoHvB3ANeW3ama7oE4g9kbEDUu3C3T66gz0h2yNvNZ1TPlO1oT5Uct9zGtaS8wq9NQ9YOhdJsvzZ9EIrD2397QY%2FkfHSgDthGfC9crFv9Qj%2BXg%2Fy%2F%2FrrL%2F7CgvkGg393B%2B9osDcDjFcFlNXQvFQfVhNMmWKpHyIT5vfn7qd5mSEfj8379%2FHoh8C8HXesPgT6UdPKePyQjgwk5nXweEQZzTsiX2kjJ0Z5E1jeVhpJG8sbbRWZd4fawbi51O391ye2uoI3gdqub75UPZHf%2FKv6Xr1W2%2Bd%2FjiyFN6jyK6m1siO6scNZksj3bOQzcikRzYU8KDbvPBV1hHvLfeRsS4SHmbudUNkklmtLhcfEvEN0rcbOVRWFABzH8iY1r59mqyabt9etmMA3L7JUpC8sN0zqemC5P5rvZmjm7hsyhJZbopHJx8C5bJMx%2FIQM0czdN2SILTcrThmiGzLEN9YX2npiuRMY11eB%2BfLiuLoNLG9eOpa32mZkTn9vKV9rZH5hQKzOZTGfxc7iwWpCbTZ%2F%2B7UvBxeROSJW8llgzmUVLcbmJFWNQqFrebsw56e6%2BCit9Dmd5W0%2BKUYV3Ca3m5Kz3cBxcrsZ5GpOTslWxlRC0qsDy7BXUUaFLDNVpy61dRhumuNOdT2yTCzV9dgyfJwbjmAwaI4KHXFEX14HM892BjOTym5%2BUoAp3rzdTh5gkmeOB51m1NYtMoTO5foTItZo5m63iHVomdO5IkYdujVQOwPOer6EazRvrxtGoTkKc7G%2Fdgq%2Fnp%2FT19G8vc50wOZJ5m3tNOibfEZuIdXldWwOomYLuZi3122ixJxoOYKNtmpKnrhWSzVIl8gcxiiroTlPmDaG%2BgP1sbpcluTAPl6em%2F4IvdihOR69kD4YHtiPh%2FCl79pvhH%2FJf%2BSXd%2B%2FNvn%2BlS%2Bj8k355aE%2F93TtpXl57%2Bt2O5jn6Zd0e247v9n3fCws3H13z8gL%2FgUTnBNX1hJP9YreIF5%2BmL97nUMnvK5IepuQXdUp2h0%2BT35ID%2FH8UnX5M0n00oZ%2BiXbj4PPur5lQdNeokoPSTCfVskYTV56mzN40%2BdN2nNTF0v0vjKPY%2FTb782ZNuyv8hhj9T7bMf8wCJu311ea26rvpgaz4EiFAcb%2BFAGTBJqF95jHochnkShkEQhvEOhikOfmALiQ5SOw2YjGAYPGAYCmDWvGPWfGPosTG00hhaYgzdK4bmE7MWE7NWELNmCrNmBrOWBfPGZESv%2FVxoMTBU8RiKaAy1MoaaF0PxiFnFh1ndhll1hlkNhlm1g1m9gVk5gFnWxyw9Y5ZdMUuSGPIZhoSD1%2ByfsBsCKF4nOvjt7EEwwxCzMIQmDPPFEdHXNMm0GHA%2BQQoWTUek2rexyRVmDRmGbIIwtG74MZjA0M%2F%2FCw%3D%3D%22%7D"
+       data-href-ja="https://app.diagrams.net/?pv=0&grid=0#create=%7B%22type%22%3A%20%22mermaid%22%2C%20%22compressed%22%3A%20true%2C%20%22data%22%3A%20%22vVtdc5s8Fv41XOYdEGDgEmTcyW6cepzsvLuXGMsJW9d4MWmam%2Fe3r44khIRkmXQ7m2Y6roWOzsdzPkUPx%2Fa9fq263kP%2B89Lzc%2FhFvvx9vn9%2BKL248BBK%2FgjpF%2Fl245Wxl668tPTKzMsKL114ZeiloVcUXpl6aeLlOXum8LLYKxMvy9hS5qXYK5B4GJbYh3w5bMdeuYK%2F0zTwygVsSxE7g34O2UOBl0XiQ54OT2eUOS%2B2ML8sAsZ6Sh%2FIu%2FOS%2FGhq8tRX%2FdvFC%2FGu89DKC8snKj7ZtM2pHxjK2QfkFZn4JgUKHsrEKdoRSB7xRF6%2Bk1P%2FG2mHkvb9Jl8rdP9sTvv2%2FUIfeiLdD9JdI7HiCkB%2Fe%2Fr6CJYoYi%2FzmW5LL8O6JZCXB8OHaGC3UA6tuvNd3R6PpO6b9nTXkcvbsf%2Fj35f2NBpAOfsx8JICfhE6fWsudyfSv7fdN4UgcESPKkqGloWXxk%2Fr542uKfoBK%2FhgIqTsA0UCtS89OVnCr2H9y9vupavOr6CkLz7Xw6jziTm0QySY2VEFB3PKcM4%2BgHpiL6cqzK2SPwdgtPFAau2VbnZ6oPFNMWi%2FkNzFU6byDDyMqqBIFA8TTgN2zblfCufxfYV13VkoWiZMcyCPKJ7idLBHGg64SYZnkoG9ZPoMcMWiRcaUR00NuyTDfHusw04qh%2BEPtjMZaCDI%2FSFa%2BDQEbKvTC8Gv8PeGnPbN6QUepviGXYwOfcyMEarMIcfn8rU%2BP9XtmZQ%2Fm0sPbuWFKwGtyY5osGsMoY9jgyHhfsPgTPUfDYuIEVoCAGnQaer7M2N5W73rNlt6echshhkOnRzHv3Q%2Bvl9uhSYhblLPWUJItZ3wEHCdTKOzMKmC3Azdsi3FyOoqlmXaMCkL0AUsNPCwvxrC%2FuoWY7cCGih6wY6IGasrTeOmxRPdk6UDL23%2BwChlPGJQD1wKU2TlYKcVODDlC2JYBK4OdKTOYuAUtmeQRmG76e00H6YsjXLkIDdgqGPcCI0bLt%2Fmo3%2BlkXyqwUQ3G2KQE1LaawEbFxuRh6ZZmNs0lf7KjELtCHZPISLmrBKgYQ8UF0NUy9M58FOk4bpmwQMgtwAfk8AwzZkP5ixCGWmu8DCpRviHQkGaDviRPbupNkhEI6ah548zsecbA6KbUITux7W1OBM6OX9cTt%2FPIw%2BDGZvzI%2Bmf283rx6Wpq%2BNztTsSl46tvId7LWyMNaGUfqErJhBpnOp1hNTqinwHLX2P6MyMBDloHcocMzzoEq%2FJvql%2BTVyRBtakq741UKtVl9ddW3V7KJE39xq9LBj4CxioYvDtIh8gpEQNtBJFEk1BK077kX9xTwmv6mPDMrOVIyUxWIpzzsucCCYg%2F1Bd%2BrLr2m5NLpfqhSjwTgHtWaoU9Hr8Knj1Ho8FgkzI%2BUJ3rqFAmLq8001kQDadkqkWDkkAAEL2a25qlsOGt40mEmqxBTDQ7T%2FOF0KbKCBFE280JBnfLkE6%2BMoCDsx4lZYzUZx%2BkHHJ8VvXUSAMnczy698lf7g9XUj91jc%2FyKpqjm8dwe2b6D6AT98IU7IhKSy1mz2Wi2L61lke4vW5hYKoMa5RCJcJEtagKgSccRsOyhkAlyBbn5iBKiCMUwMvRDKewtKV8TcBsusZeCT7qSfkSx0vYAat4RGenwrO4LEEpMhjzXMACWq94PSBQFSuCVLcOwV503gIr6mSv9Q8GwiITwuUq9xBLHhs%2B%2BbQkH3eKwlkmr1RZLNHBNgCcqzeSXOli2OWTcsbsA8iLfzLzjArp%2BXdGFZ8mzxSU9mglwhaM1ENDGFPFVXumOfYgYzC1sODgffgamIJFtfjuLV%2FB%2FbuedpfsqjMivt0ORyY6AQi1h8Iw8I%2BBCsZWkPnIT6LXgR0yC3FuKGKynjGXjJnlIbmflrcQmyijiJkDuSBrzAKNxVjYBg2ABk9KRnNQVUE6uUGGuK7KJ1LJfOWUxNQRfxaxbwVFXP7TrqnV3I8fqpq5pJw6y4Z3ynUpjZWtoF5krHRPlhQ3STRxx5DXTJtR5RYBMlzaFBS3znEEJMbDW6W%2BDs5S1p1oJTaCgNVjt9cbG%2FRkIPVQWXOvEPXmlZbTqQthQA8Ck7TkzHhCW1cGk07uGEqwhTUNdHQFy5sD7sy2TYcg8m0xJIkZSwAWF4Z1hYFBMYnQk65rcgZtDHjnCvWEBH%2BU3jIy%2FVbT35%2Btnbfihj9hfR39%2Bfqe77fd7TGVQCcsDlJwvCPrw35tosBQKbOEghqBWs2UwYvq3Eq4d0eoueiDGYvipKVzAMKxEomMSOvZN00jTJoEjFdlhrSh6R%2F8l3LG8aqkGQcccaf2reuJmZBgNv2uG%2FfT1rqlZimkVsyr9TYgli4zN%2F6dkl6UvfuqsvOZCiZDDmTAzO0nuv6SXq3hk4E0xU78UgSjzjxLfnPG7n09%2Fv%2FgWishKR4qMMB55p680KcRfZ6m6kMPuV1ichEwRDXlEmaGrHs%2BBSlyJVilvlYzsdosk6%2FVt6yGlDpGVd3QXQDZbtAUcekVBV6mfjL%2F6EW3e4E9q%2B46owicbsLxwbWHkiN2cA0l4SW5n0aIGXsREocuKLrWuj6wof%2FckBzf8lr6M6oMx6q44VMOwrbfNYylg%2BXffdGbmi2RopauDZS6OVhQGtNS1znrIKHaJaw3i7TR%2BvqqM99zSDdhad4Vj%2FCeIFjpbw5ltjWwqw0nxh55UbJdSXiuY5bC4utc6yM0%2FgdQm7rTF26XwvVM2Iy36g1uj9qLUOikYBORPo1R0Hg7GhllcCxs7ohYagk2NjwDurjxSD8JFFKxp0yRwrceGJUvVApd8fLA6PYLlbTMiXjCIqGO%2FB48EsAl86vDEFG62JVh8gOEitKFnDK6Y7iCYC%2FWAxFP2%2BtFsySMm98Lq6HN8yafKJFHg6a7xe3u7dyOF%2F2thGARdzu6uND2wll8Ftq1RSCjbj3YwHGepZwzOG%2BfwLILLt%2B8lKJ%2FdLaV0a3WT4d1JoIz%2F0rlKFVhObh7k%2BKLNIN343XWoHvB3ANeW3ama7oE4g9kbEDUu3C3T66gz0h2yNvNZ1TPlO1oT5Uct9zGtaS8wq9NQ9YOhdJsvzZ9EIrD2397QY%2FkfHSgDthGfC9crFv9Qj%2BXg%2Fy%2F%2FrrL%2F7CgvkGg393B%2B9osDcDjFcFlNXQvFQfVhNMmWKpHyIT5vfn7qd5mSEfj8379%2FHoh8C8HXesPgT6UdPKePyQjgwk5nXweEQZzTsiX2kjJ0Z5E1jeVhpJG8sbbRWZd4fawbi51O391ye2uoI3gdqub75UPZHf%2FKv6Xr1W2%2Bd%2FjiyFN6jyK6m1siO6scNZksj3bOQzcikRzYU8KDbvPBV1hHvLfeRsS4SHmbudUNkklmtLhcfEvEN0rcbOVRWFABzH8iY1r59mqyabt9etmMA3L7JUpC8sN0zqemC5P5rvZmjm7hsyhJZbopHJx8C5bJMx%2FIQM0czdN2SILTcrThmiGzLEN9YX2npiuRMY11eB%2BfLiuLoNLG9eOpa32mZkTn9vKV9rZH5hQKzOZTGfxc7iwWpCbTZ%2F%2B7UvBxeROSJW8llgzmUVLcbmJFWNQqFrebsw56e6%2BCit9Dmd5W0%2BKUYV3Ca3m5Kz3cBxcrsZ5GpOTslWxlRC0qsDy7BXUUaFLDNVpy61dRhumuNOdT2yTCzV9dgyfJwbjmAwaI4KHXFEX14HM892BjOTym5%2BUoAp3rzdTh5gkmeOB51m1NYtMoTO5foTItZo5m63iHVomdO5IkYdujVQOwPOer6EazRvrxtGoTkKc7G%2Fdgq%2Fnp%2FT19G8vc50wOZJ5m3tNOibfEZuIdXldWwOomYLuZi3122ixJxoOYKNtmpKnrhWSzVIl8gcxiiroTlPmDaG%2BgP1sbpcluTAPl6em%2F4IvdihOR69kD4YHtiPh%2FCl79pvhH%2FJf%2BSXd%2B%2FNvn%2BlS%2Bj8k355aE%2F93TtpXl57%2Bt2O5jn6Zd0e247v9n3fCws3H13z8gL%2FgUTnBNX1hJP9YreIF5%2BmL97nUMnvK5IepuQXdUp2h0%2BT35ID%2FH8UnX5M0n00oZ%2BiXbj4PPur5lQdNeokoPSTCfVskYTV56mzN40%2BdN2nNTF0v0vjKPY%2FTb782ZNuyv8hhj9T7bMf8wCJu311ea26rvpgaz4EiFAcb%2BFAGTBJqF95jHochnkShkEQhvEOhikOfmALiQ5SOw2YjGAYPGAYCmDWvGPWfGPosTG00hhaYgzdK4bmE7MWE7NWELNmCrNmBrOWBfPGZESv%2FVxoMTBU8RiKaAy1MoaaF0PxiFnFh1ndhll1hlkNhlm1g1m9gVk5gFnWxyw9Y5ZdMUuSGPIZhoSD1%2ByfsBsCKF4nOvjt7EEwwxCzMIQmDPPFEdHXNMm0GHA%2BQQoWTUek2rexyRVmDRmGbIIwtG74MZjA0M%2F%2FCw%3D%3D%22%7D" data-href-en="https://app.diagrams.net/?pv=0&grid=0#create=%7B%22type%22%3A%20%22mermaid%22%2C%20%22compressed%22%3A%20true%2C%20%22data%22%3A%20%22nVpZl9o4Fv41PJLjhS2PREAOM0WFgZrT049CFuApY7u91DIP%2Be1z75Vsy1g2SVfqJFWW%2FN19JecoeRdXnhUjz3lZjZwlfntO%2Ff2yfXlaj6bfRp43%2F%2BLDg%2BVhD3%2BzJIqkKMIkhl94HOBBWSTjg7yEeZFxfbIBdMJZXJMyiz5H3lcAGk0thFbfXCKzgAvLLF3Jt1DIY8GLMh%2F57JSNvM3IXx%2BBVblPwhj5jYAUwgGoQmzBeTXcUV5uMi7%2BJo5f42z3y52B8UcYB8l7DpeOMnuTWR%2FERgnm%2FeP44xl%2BzWReRkj2HEbSgONZOha1Wsfq2pf%2F5qhIr4v67I7m3%2FDb8%2BLXMB%2FHsnhPslcD8C3kcA9ElFnMI2Rz97InBiL%2BiZjzFX53LJGXp0vG0yu%2B8d1RvL9k4eWCImpjH3h8kageCei3MNYGt%2FD54qLyFAjPXxFUXGVQRoRW1LiGjzAkgxoa%2BUvHaXwGfrjDVjb2NrIQxG5laBAi5ml%2BTYoKSnyKCBnOC%2BXrQC6MRfSlkoVd8e%2B9jIMwvrTc1KTnK4WvriI9iiSV6w9wnZw43WiN3r0xURyiI4cCla8VN%2FJXyDA93qbEwoHrWMlBDwIvJWdSUVlcezmaDuKfywgNz7arg%2FX1J1cJtBR%2FlWGG70WJeFVc3MpCfiATmX48Jof1nJssrkmgOepKPNccvYYp2A%2BepBnEclKimrIyJhuExFYY02lyAV%2FPrfyBOR74515R238CTwi3v%2FJcKrrdTGWhsNfBeZAc%2FRq84yLRPwLKP8jzOUtuiHaXk0hHFVn02Fz%2BVYLzhRRqUZKkKBy5tsLqM%2BHeUzb4BqYjLz59UmDhOy%2BfqbRqee9rLT%2FvUEhhpmPgK%2F3M41uKFEkTZx0fYfosi5dkf%2F3MQ8GjF36KpJ0nP1BM6SuOvKXFZ5%2BT7%2F2zjkMeRScODmSjupNByAdI6khhnHxjJzP%2BGqIieH49JTyjErPfKmhIcDrfgSE26u6zerCFixsRhSoP2AhNDQdtq46R5S7oBwlGB8%2BLdZYl2Q78k6uw8hYiKSGlIjuc3IOHUZn1W1eHw%2FqNRyUvpFkAWt7hwy2nTHNJ6anjbTbohbLRsRQCA6jPOl8rD8%2FJs1mZZaCcqrSufvxTCc6SOJeiLMI3uVEyMZQUbjg9kaNrwzYWmcS8OwBiB9DZB2IPSwI8mnskBap57l3JOjVeo%2Bu8L%2FfsXV0QjlZJkSMkg9LGSRGeMdBaxZMon8MM%2BwGnCG%2F9ZnV1KVh%2FCCmDXPGuKhcVSCo6keSE5E1QlhwKDqVY9RA5ENqn0NOekaNQBsuC4rbHmG5VUCSRAcVDF0J%2BRBJBWDeuXKaB8rh7eKtAOiyekw6W9fpMXV9eIHtfTMfOqxS23Svh6F8KqN2SVT9qJcArKZr4obqrMPpIEwoQ3UwZOfirCqEY0QMoZqIgHqBl85z3LCzk3y0xB11ikneZHa%2BS0pNRZg7yHCliJJiiaCF0qCoN1cAWWqYgqNLmIgtT3aG0SgpVy5zfSFfUSbH7QkOahheyzz5FHnSx2ebV9fewuBJ08BnzG%2FUQaZJEdRzm2OcYjQX4G1U%2F%2BSGiMlcVR5%2FZg%2FKgS9WPsqhamgoT4AkmoODXhVabLGtPEtjSKkc%2BShmjE9fu3SOpDpSmtQEdjUlk3dnYXtJB8K9Sog4d1UJ%2Fl8V4m%2FLbMgh6O5XDrMplLbah3SzsFfzAtT%2BAElwSwvm3Ga%2B1mORVAfTZVX1XgUJlXmbnJLsp7ams1aMM7tXEPEXsIG8JJVUG1oY5Jm4scNT9p%2BpqiuaJv8Ihb0W8IFErJb%2Bm5CtKDNJgZhA6Ygvem4gOfFIDTNoABwyHvNj2UZ7q7jykTu5KHTTMF6GefqquGvt%2BcLkGEETpSbcHPquyor1cjMlTBWiS%2FAV4XqYpDhHYOW%2FG7qTXIqeq9e4vFEbjbHhEH6snbWKrF1k58I2MX9cKEKG4ZklRUKnsYV5o5vXAhVGbLwVVaX915lGuvYcymmW%2B8lcw1cheUYQWZSXPqrTJd1tGWGRyLJu%2BKpYfxqTXx7lvZmGI6HZkI2qPs9sBd1oTqrTFNHBizPSIttOSfQupfAc1uq6NKI20tSFOEke9WX1XzaXhGRSmDKLwagJ9%2FOhg%2BwEOTEWyfnNMRRqqZsUDpDIcKaBgxPYUuNPxV%2BvvYXjtfiG68jJPKx1BN3iOQlHYIs3vVc68t7EhlF8w8uMeQa%2FINphrwv%2F1903retzEkP%2FFqrTWTvPUjCbN7mn9puyNh9SPiDIvKI2rSWbkzbGijv8AlWIwzZXYruO4YKJczw5VgYXH0IKvUsjQquuox5vmgo%2FhmxTtY7vi1v69uM1%2BodUB5WGgU8b6Iyw0s090twd5Uq%2BVmF7tUEdsXxRZDahWm57z8%2BdPtafqLq6c8Xjkr9WmqbN6Mk797qKoOp2DUB5lO4wApnZCw7d1Aq2uT7s7pYb0k9vdCA2cPrltUhgUFZ15d5PTIK0nD5D%2BVP01Qe1dy3K3weoc71unXndB0qLEQugftz%2BOtU9uYCQIv1flC5%2F8yW%2F8yg8v%2F2lY8h%2BgqiXCznhj8uCNMlbNERW5Eqawcxirrki9P%2B3ubAwp%2FcCyc%2BnXqH9%2BdN0w5X5u2dAYtOfd3cvQ6XTw1PQStPPA8X7RXWH0i%2Fz1wWVTYNfpbj1Mh5tZlhfmuWvZTQy4t%2Ffoeos337KmaIg%2Fu4PHNt79Id4mj663eJtaFgyDvE0e8DZ9cD5rnc8tg35zvnG7H6U0pwfX8pnPwPGh9bLXnYy7SlUfE3SHYz3qMjXeDgNR3wE49aCd3%2B3qDaxJd3Y2UrDbHXENgabdWdYMTH%2Fo%2BDDrjrMtIYB%2FroexZlyE%2BSSXarmn2OfuY5iTgqE1TYNVIZx%2BAUEohDJWAwE0vE3SxcmkO2cbgnLPMhoP6ql1juNtd%2BA1zyeWedY8n1rG1t5oxvmzO5EOxGf7eOc%2BImbkgu7l00AOxHHzwXUDG2fN7rg6qPbWuYU3f%2FBYDLEuvEfXTdaFbxlPh6JS%2BMOSicGg3g1wvvMeXDbN6XdHzyG2doNC7QZKzm7y4HKVAdVgWcaCdgGBmfm6BCfD3JrHu2l3Eu3ndvbgsqnDeXdgHQi%2B1mlXovnQ6drMUmuvOwEap353yrpv1NsXRMTzfCXP9GP%2BEhY0L53xU1gcGf0zfcH8lRdZ8qr22r76qh%2BO38OguMKRl8KUys5JXIzfZXi5FvDsBHkcHookgmaY3nYcB%2Ffxg3zUn%2F23OPGEuOMkmJ1m09lv49efCTfwAZeL8z38TCzk6fzb8M3e38CfykUwucNfeCd%2F9vvsb%2FTeskGXLuDP79C%2FzuY%2B%2F330euVi6H4hZEf3p8V0MnV%2BG379Uf%2BvE4PAFP%2Fca5%2B%2BugRqvwt4fuVZxj%2FVegMD39fkLRwYc33t6j3XIOIYjvEM52%2BGUzXD4Zk90cG87aR2DBxcGc6FDIc7RjMZo2GL4UzFcHRiOAIxHF4YDiWMRg9GEwOj3pxR08yoNWaqAW68104XW1mGjSbDDpFhI8iwoWPYLjFqeRg1LozaE0ZNCKPqz6hOM6qvjMooo%2FLHqKwxqk4M6wrDisB29Cu%2BjXmS7eZt57ezh8mMYc5imJoY7moaj%2B7TJGnRVXyiFJRNG0%2B1v0aLBUaNP8Mq4TEcEdize%2BeGzvL%2F%22%7D" data-href-vi="https://app.diagrams.net/?pv=0&grid=0#create=%7B%22type%22%3A%20%22mermaid%22%2C%20%22compressed%22%3A%20true%2C%20%22data%22%3A%20%22rRrZduI49mt4TB9sYZZHEJDDVEhxgJ6ueRRGYE%2BMTXmpJC%2F17aOrxZZs2SbTneJQYEl338UlSt79gKT5wB0el4PhHF7usHwdN8eX1cBbDFx38gdiD16KwcoZLBaDGYqv7HseFPydP50P5ss7%2Bzrf79j7rwFGgzkHhEeDmQPvU3HqDZYWSzgpwS2cap9EMONbB%2B70pp5MQvYANl5D9YjBmDHiBp6F%2BCUDCqRP2YZ5el%2FSX6FPDznJi2yA8CkduOsBWh0Y%2B3SXhDHIIAqzXCA9kzhgnzLOhOMHEg97F6gMPG6J50CvNxrn%2FzQCVCLY7OZbDfhfYXxO3jO26UDTXzRtA7EWonDXYUS5AoS%2BFmug5meh1Acq%2Ftfh%2B6uGgaT3Jz%2BJIurnYRI%2FpTQrovyP%2F2ZJXMldQ%2FTqDCYLeLlu%2FBZmTzHN35P0TQP4syBA7vYIRpLSiHyy%2F%2BNS66DjU%2FkNcEyW8GqoNytO15TcQYiH56Fg75iG1ytIQbM%2BtoOLOK5b2HTBNXAvjde5wcHQytfRAfkLJCR7A6R%2BQM9FxLG9BYridfioIRtGjEtCF3NQyXBYGTb7UKNF2Jv7ogj3QIRZTO5ZkOTcFqQVcrQaNWzvBBzW5277ppwPCQKupW%2BDIPYkvlIcwPuOxucQuJjZZYOEwpeBfz%2F4yZ2uPpiZc%2BxoLTVYOzESHCxLwwOJbMAifEWE06KvAYLAAX4c%2Bps7p3JP3gWrpxJezLnkml%2FGQSvl3t%2BlI0%2BEocU1sx3izXJvxfniCGmZ2osS%2F01aSZHTD%2FYxSJSTTvxqw4U78Mwu1YngZqEIXXPnJgME26LSAqRslNUD%2Bjwd4PFgMVQcLHzuQ3LLovIdwo25dppR7Zce4Fh3iMPsUxhnOYl92qYSZmo9vr4TXD6HpPK1pMQGpO4%2B84DFJ872sTVDWZDvHJtnNUM1gxcaIfRU2gb7ovx87oEU85CfmxdaupvDtnpO4nKUpHN%2FzHwC3OSFoTkjZVYAZTpuJ8su7p0rrHEnfMUFDLGKmIJTmkAO4pQeP%2B%2FUano7JGOjTdqH1%2B1OcHf%2FzOLbHWgxTZKLOby%2F0vyY7ILPLPRJdCSniNppRmdB9KJyd%2BA%2BLeMr%2B9oSeXboIjMhiaITYT7VTsmWnkPSQYYMYs9KyEuwxy1NyRt8WJIsOCUkPYOqdxuBh6VAmRGZvtdi76t4sGEb134UisBtw%2Be1uLe9DOMRPQirXAhqfCFZvkrTJN3SLCNXKtSSV3GSSUIlTqcRNCoEXmVd4HRhq3nJkMS9dKiZ1VV4hdNTjEjr%2B4KZA9t%2F3jPKa9qGi9lInApjOgYykgc8%2BkMqHnXY0cxgTEVqQIqLNGVKVJXm8vs3QRUrnShfT%2BKM%2BkUe%2FqJrEkZFSnFSsOoQLYctQUlVN1oJ3QYETkBksMKRmcegee7AoYnLGQVjYB9rxUmn3llJK%2BKbHpt45LMnqZ3jPiw54IyehfTyoFQJUMCNRzeN2QKIMWpOzo5pwc1aqMVuHVnT%2FNvIi3MkhcVJanY4SFitcErhVLkIqLr83FGgVV9TVE8MDaezM25L2YxhcPHXJA8vIT1DLTlrNWGnFsDmPIC14auYWPs6kWAEuCyYVMyvdnMJ1ImyilzGt286AS3UWM%2BPlZtIiXj8UFDq7v5YsNnIZCX%2B1w1msQaFbOfYvpCXNdCyqkzCUs03o9ngFWp5gNedftlcdwRUR0bUH4VhU7xrMyoIpveFaE0qAYp8kKdlCSELFMXF3cwWvNn8%2F4q0fX%2BRlrzT9BDQKBKpcWeKRssVj1C0l5UbNuvOzE%2FDe94UvAZdo4PLL9aVUBdOniaivOVCFZ1dzvtBrPnEYnJvzV3cqliQSz%2FbVLyXJRnfGSuQvDlV6M%2BfMbmFoLx7kkRl6M6g%2BYJMA02RrmgeVuiHHxVZCLahdthD9F4Wc69X2dyE9jYZUBrm1THoEYqD%2Bqduk71x40BpLAKZVVojW8mumijNpW1nPTU2KD71fseLtSy3EA3NM82fNndym5%2FPLJHbS4n9WJYSaWXpVRAT6bJdRjZNEGnWTNIOl8AQPyqu0v4eikqcPjgVlEsiYbLqMDDCRX1Dc7qQVxVBi86IW7LlCrZeEqOoOOk1LmY2fk7eY33QMuWDlkNSpNBKNgMyryfkMlrOizxZ0pz6OZQTVopQSRESFP3gekFEI4AVJmnemsD2ZFTCGDVg7OnPgmb5pg2%2FJ0xHcVQNY7jQRbxBVWPNfHqmgQW2dLdqSfl7onJkS5JXIDSPL%2FvYnkJrV20vQ6E6u35yRq3GcDLL0n%2BoiDJdwVorlUUbE2ybwE7SUh92OyuHyFLZdMY97nZpkudR66Bk70u5yWmfYSWbbO5Db8Bs%2F0KiTLpIbaRkmfChZZ4WtFUavqvSuhL1ujvs3wyjqYaR1kbQKClLXa2t88phRop2ySBrMcBCtxnCgaCWGGGHvJUiFyUgzBfBqogmA6NZ8C29aqSpvUXMWyXlanCtSalM6nzWJCjpCuBthOlDu%2Bms0XY82iltkTFAspEgaHyTG%2FxWtlU7EoRmSzUtYTzxBWCllmfY5xsLgwSGSzWjM%2BOGjQMz9KJlFVPbKO2JorGos%2BOr3kR%2FFHqNpCbF%2Bd%2BPrKhVNZPHGyrA84gH9Ff%2B8r7wm2H1EuvctwJdOUZYUXN4eSEiYspjFd3K1W1Iaxyqi7LVLxEsX5KraDz8IsuTGx%2Bxi4uaCRSrT38x%2BcPlzkQIxxkOHQiP9imRqmzZLlfsah%2BY3AzlV3W1rLckGNQHpu3mwa63FeoXcXUHIePJktT6I%2FDB1UeYS%2BG88AMtCEflhVmrKVjiuv3Gy2p14nLaHf7%2B%2FVtc0DVv7IZPTwO0EldmjTs0bRU1b7TU6oTx7PKkCJEAi8ur7t0y46rtXvPyq0L94jSvpDpWXxwTle7aCt%2BkeS1UQVyNeiBiVUNIcDvHcq1ewWss74xVt3ndYGILWc%2B6%2BX4oLX%2BdpHn4THJaPvkPuZGA7I8%2FKpJQD1QxV99qJ0Y9J%2FRU3pWxGzVUrPfItmtClgvgMa%2FWFTVe8%2FZEkxk6W%2B47unWELn1HLIaym1juRjQ6Js37jq5Vr3NVt0GwoI7l3bQ5oe9mf9ZzwMa8M2xO9HWzHlum8Pq6Y5mu9ziS23fESieyDNArQl6dzmUbH6iPzlHfESudnmW83EnnqIdOr2d9bKxPLIPSan3tNH8QU63uHctPejqW98Zhtzm%2FswuYd3X2CZ6cxGExfeuGZ5RzOkgjs%2Ff9fkFDOGrO%2F7SE4TQHbhrzXnOkpjs66lrej5vzM4NTxhxRUy8lw2oYpMgnTj%2BYkwBTa8DbYZ4egOlL0ixdoHW4h2XT3hzxaSIhrmVW1ilRYx3mWM3Jlr4%2Bskyt9HXPMpnqjBcwU2pOmTo831zeOn0ILdGmeejUE31hkNNzxIIHJjfNgVCnOox1C52oc9nvY8N3%2B47Y2PCRZZLT5eM%2B6ubS7wwR2x4utm7PAZvKUXNK0kXitpPBbU8S3I56DtSDsD7jMG9D1GVkqMfcJkGjbm705a3XnGB0czPuOWCT96Q59OhwamO1yd2ka3WlR8CV22zptVXU7GvrzY25wY9Ili3phX%2FMjiGfqMLP6MS1I7rwP9baZiyPvlHxUPyVD5%2FewzNrW9HcvX%2Bwh5ckzp%2FeaXgNcvbsxHIHe%2BgnUZKK0%2FDrTbTopqP8oapBiev7NUrO49PYG38ZvroE1sCfCZ1e6uDH%2FpSeLl8Gv6cX%2BEGwCd%2Bj0%2FOoBn%2FqntD46%2BSvw5hEBnTqMPiTGvTZeILI16HzHyJ8mrKf%2BrQh%2B9PUG3nDL4NffeQ0rdN%2F8eBfXfr8r4mgtLszyQKSpuRTTKogCCCJ3kKBNhMpTb1lG%2FM4DCMQDLMLDBMJDIMH%2FMIXJqaR2mFAo4%2Bhj8bQvmLecWLeQmLoFDE0hBgaOwztGIb2CvMmCvO%2BB%2FOuAvMyH%2FNiHouSvbJeO14ovjHUxBjqVAzlKIayEkOJhnk5hXlRhHnpg3mBg3lVgXnOxzxHY56KMU%2BfmKdDzLMahlyEIXvgLf8KpyFe4u3ENH47eRDMMMQsDKEJwxissug2SXIpOoJO4IJH08pS7cf4IAbzVgUv%2BW%2B4oanBr07NDIfz%2FwE%3D%22%7D"
+       target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+      <span data-lang="ja">draw.ioで開く</span>
+      <span data-lang="en">Open in draw.io</span>
+      <span data-lang="vi">Mở trong draw.io</span>
+    </a>
+  </div>
+
+  <section>
+    <h2>
+      <span data-lang="ja">フェーズ概要</span>
+      <span data-lang="en">Phase Overview</span>
+      <span data-lang="vi">Tổng quan các giai đoạn</span>
+    </h2>
+    <div class="phase-grid">
+
+      <div class="phase-card p-trigger">
+        <div class="tag">Trigger</div>
+        <div class="name">
+          <span data-lang="ja">トリガー・区分判定</span>
+          <span data-lang="en">Trigger &amp; range determination</span>
+          <span data-lang="vi">Trigger &amp; phán định phạm vi</span>
+        </div>
+        <ul>
+          <li>
+            <span data-lang="ja">Segmentsスナップショット取得</span>
+            <span data-lang="en">Fetch Segments snapshot</span>
+            <span data-lang="vi">Lấy snapshot Segments</span>
+          </li>
+          <li>
+            <span data-lang="ja">固定IP範囲を判定（StaticIpRangeRaw／CIDR全体）</span>
+            <span data-lang="en">Determine static range</span>
+            <span data-lang="vi">Phán định dải IP cố định</span>
+          </li>
+          <li>
+            <span data-lang="ja">ロック取得（多重起動防止）</span>
+            <span data-lang="en">Acquire lock</span>
+            <span data-lang="vi">Lấy lock (chống chạy đa instance)</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="phase-card p-python">
+        <div class="tag">Python</div>
+        <div class="name">
+          <span data-lang="ja">ARP収集</span>
+          <span data-lang="en">ARP collection</span>
+          <span data-lang="vi">Thu thập ARP</span>
+        </div>
+        <ul>
+          <li>
+            <span data-lang="ja">SNMP／Meraki APIで機器スキャン</span>
+            <span data-lang="en">Scan devices via SNMP / Meraki API</span>
+            <span data-lang="vi">Scan thiết bị qua SNMP / Meraki API</span>
+          </li>
+          <li>
+            <span data-lang="ja">ArpDeviceStatusをUpsert更新</span>
+            <span data-lang="en">Upsert ArpDeviceStatus</span>
+            <span data-lang="vi">Upsert ArpDeviceStatus</span>
+          </li>
+          <li>
+            <span data-lang="ja">結果をJSON出力（IPAM直接書込なし）</span>
+            <span data-lang="en">Export JSON, no direct IPAM writes</span>
+            <span data-lang="vi">Xuất JSON, không ghi trực tiếp vào IPAM</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="phase-card p-reflect">
+        <div class="tag">PowerShell</div>
+        <div class="name">
+          <span data-lang="ja">IPAM反映</span>
+          <span data-lang="en">Reflect to IPAM</span>
+          <span data-lang="vi">Phản ánh vào IPAM</span>
+        </div>
+        <ul>
+          <li>
+            <span data-lang="ja">動的プール内IPは対象外</span>
+            <span data-lang="en">Exclude dynamic-pool IPs</span>
+            <span data-lang="vi">Loại trừ IP trong dynamic pool</span>
+          </li>
+          <li>
+            <span data-lang="ja">登録状態で3分岐（Cooldown復帰／更新／新規登録）</span>
+            <span data-lang="en">3-way branch on registration state</span>
+            <span data-lang="vi">3 nhánh theo trạng thái đăng ký</span>
+          </li>
+          <li>
+            <span data-lang="ja">MAC突合・競合疑い通知</span>
+            <span data-lang="en">MAC reconciliation, conflict alerts</span>
+            <span data-lang="vi">Đối chiếu MAC, cảnh báo nghi ngờ xung đột</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="phase-card p-final">
+        <div class="tag">Finalize</div>
+        <div class="name">
+          <span data-lang="ja">終了処理</span>
+          <span data-lang="en">Finalization</span>
+          <span data-lang="vi">Kết thúc</span>
+        </div>
+        <ul>
+          <li>
+            <span data-lang="ja">Windowsイベントログ記録</span>
+            <span data-lang="en">Write Windows Event Log</span>
+            <span data-lang="vi">Ghi Windows Event Log</span>
+          </li>
+          <li>
+            <span data-lang="ja">ロック解放（Exit-WorkerLock）</span>
+            <span data-lang="en">Release lock</span>
+            <span data-lang="vi">Giải phóng lock</span>
+          </li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>
+      <span data-lang="ja">主要な設計ルール</span>
+      <span data-lang="en">Key Design Rules</span>
+      <span data-lang="vi">Các quy tắc thiết kế chính</span>
+    </h2>
+    <div class="rules">
+
+      <div class="rule">
+        <div class="ref">7.3 (a)</div>
+        <div class="body">
+          <span data-lang="ja">Cooldown復帰は (1)LastSeenAt更新 → (2)Source除去 → (3)CooldownStartedAtクリア → (4)RequestIdクリア の順序を厳守する。</span>
+          <span data-lang="en">Cooldown recovery strictly follows: (1) update LastSeenAt → (2) remove Cooldown from Source → (3) clear CooldownStartedAt → (4) clear RequestId.</span>
+          <span data-lang="vi">Khôi phục từ Cooldown phải tuân thủ đúng thứ tự: (1) cập nhật LastSeenAt → (2) loại bỏ Cooldown khỏi Source → (3) xóa CooldownStartedAt → (4) xóa RequestId.</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="ref">3.1 / 7.3 (c)</div>
+        <div class="body">
+          <span data-lang="ja">IsActive=false は新規AutoDetected登録のみ抑止し、既存IPのLastSeenAt更新・自動削除は対象に含める（意図的な非対称設計）。</span>
+          <span data-lang="en">IsActive=false blocks only new AutoDetected registration — LastSeenAt updates and deletion for existing IPs still proceed (intentional asymmetry).</span>
+          <span data-lang="vi">IsActive=false chỉ chặn đăng ký AutoDetected mới — cập nhật LastSeenAt và tự động xóa cho IP đã có vẫn tiếp tục (thiết kế bất đối xứng có chủ ý).</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="ref">7.3 v1.4</div>
+        <div class="body">
+          <span data-lang="ja">RangeChangePending=true のセグメントは新規登録を次サイクルへ保留する。既存エントリのLastSeenAt更新は保留の対象外。</span>
+          <span data-lang="en">Segments with RangeChangePending=true defer new registration to the next cycle; LastSeenAt updates for existing entries are not deferred.</span>
+          <span data-lang="vi">Segment có RangeChangePending=true sẽ giữ đăng ký mới đến chu kỳ sau; cập nhật LastSeenAt của entry hiện có không bị giữ.</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="ref">付録F-12</div>
+        <div class="body">
+          <span data-lang="ja">ConsecutiveFailureCountが72（72時間連続失敗）に到達した機器はCurrentStatus=Failedとし、nkis-networkへ通知（以後24時間ごとにリマインダ）。</span>
+          <span data-lang="en">A device reaching ConsecutiveFailureCount=72 (72h of consecutive failures) is marked Failed and reported to nkis-network, with a reminder every 24h thereafter.</span>
+          <span data-lang="vi">Thiết bị đạt ConsecutiveFailureCount=72 (72 giờ thất bại liên tục) sẽ chuyển CurrentStatus=Failed và thông báo tới nkis-network (sau đó nhắc lại mỗi 24 giờ).</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="ref">付録F-13</div>
+        <div class="body">
+          <span data-lang="ja">Source=Requestedの登録済みIPで異なるMACを検出した場合のみ、IP競合疑いとしてnkis-networkへ通知する（AutoDetectedは通知なし）。</span>
+          <span data-lang="en">A suspected-conflict alert is sent only when a different MAC is detected on a registered Source=Requested IP (AutoDetected entries are not notified).</span>
+          <span data-lang="vi">Cảnh báo nghi ngờ xung đột chỉ gửi khi phát hiện MAC khác trên IP đã đăng ký có Source=Requested (entry AutoDetected không thông báo).</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="ref">6.1 / 7.3</div>
+        <div class="body">
+          <span data-lang="ja">Python側はIPAMを直接操作しない。収集結果はJSON経由で受け渡し、書き込みは全てPowerShellのIPAMモジュール経由で実施する。</span>
+          <span data-lang="en">Python never touches IPAM directly — results are handed off via JSON, and every write goes through the PowerShell IPAM module.</span>
+          <span data-lang="vi">Python không bao giờ thao tác trực tiếp vào IPAM — kết quả được bàn giao qua JSON, mọi thao tác ghi đều đi qua module IPAM của PowerShell.</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>
+      <span data-lang="ja">ステップ・カタログ（S01〜S16）</span>
+      <span data-lang="en">Step Catalog (S01-S16)</span>
+      <span data-lang="vi">Danh mục các bước (S01-S16)</span>
+    </h2>
+    <div class="catalog-toolbar">
+      <button type="button" id="expand-all-btn"></button>
+    </div>
+    <div class="step-list" id="step-list"></div>
+  </section>
+
+  <section>
+    <h2>
+      <span data-lang="ja">図の配色</span>
+      <span data-lang="en">Diagram Color Legend</span>
+      <span data-lang="vi">Chú giải màu sơ đồ</span>
+    </h2>
+    <div class="legend">
+      <span class="swatch">
+        <span class="dot" style="--dot-bg:var(--amber-bg); --dot-line:var(--amber-line);"></span>
+        <span data-lang="ja">トリガー</span><span data-lang="en">Trigger</span><span data-lang="vi">Trigger</span>
+      </span>
+      <span class="swatch">
+        <span class="dot" style="--dot-bg:var(--blue-bg); --dot-line:var(--blue-line);"></span>
+        <span data-lang="ja">Python収集</span><span data-lang="en">Python collection</span><span data-lang="vi">Python thu thập</span>
+      </span>
+      <span class="swatch">
+        <span class="dot" style="--dot-bg:var(--green-bg); --dot-line:var(--green-line);"></span>
+        <span data-lang="ja">PowerShell反映</span><span data-lang="en">PowerShell reflect</span><span data-lang="vi">PowerShell phản ánh</span>
+      </span>
+      <span class="swatch">
+        <span class="dot" style="--dot-bg:var(--purple-bg); --dot-line:var(--purple-line);"></span>
+        <span data-lang="ja">終了処理</span><span data-lang="en">Finalization</span><span data-lang="vi">Kết thúc</span>
+      </span>
+      <span class="swatch">
+        <span class="dot" style="--dot-bg:var(--red-bg); --dot-line:var(--red-line);"></span>
+        <span data-lang="ja">nkis-network通知</span><span data-lang="en">Notifications</span><span data-lang="vi">Thông báo</span>
+      </span>
+    </div>
+  </section>
+
+  <footer>
+    <div>
+      <span data-lang="ja">生成日：</span><span data-lang="en">Generated: </span><span data-lang="vi">Ngày tạo: </span>2026-08-06
+    </div>
+  </footer>
+
+</div>
+
+<script type="application/json" id="steps-data">[{"id": "S01", "phase": "trigger", "name": {"ja": "タスクスケジューラ起動", "en": "Task Scheduler Trigger", "vi": "Kích hoạt Task Scheduler"}, "purpose": {"ja": "毎時00分にARP収集・反映ジョブを起動する", "en": "Start the ARP collection & reflection job every hour", "vi": "Khởi động job thu thập & phản ánh ARP mỗi giờ"}, "description": {"ja": "Windows Task SchedulerがPythonスクリプト(main.py)を起動し、続けてPowerShell反映スクリプトを同一タスク内で実行する。", "en": "Windows Task Scheduler launches the Python script (main.py), followed sequentially by the PowerShell reflector script within the same task.", "vi": "Windows Task Scheduler khởi chạy script Python (main.py), sau đó chạy tiếp script PowerShell phản ánh trong cùng 1 task."}, "trigger": {"ja": "時刻トリガー（毎時00分、JST）", "en": "Time-based trigger (hourly, at :00, JST)", "vi": "Trigger theo thời gian (mỗi giờ, phút 00, giờ JST)"}, "preconditions": {"ja": "VMが稼働中であること、Task Schedulerタスクが有効化されていること", "en": "VM is running; the Task Scheduler task is enabled", "vi": "VM đang chạy; task trên Task Scheduler đang được bật"}, "input": {"ja": "なし（時刻トリガーのみ）", "en": "None (time trigger only)", "vi": "Không có (chỉ có trigger theo thời gian)"}, "validation": {"ja": "なし", "en": "None", "vi": "Không có"}, "processing": {"ja": "OSレベルでプロセスを起動するのみ。業務ロジックはS02以降で実行。", "en": "OS-level process launch only; business logic runs from S02 onward.", "vi": "Chỉ khởi chạy process ở mức OS; logic nghiệp vụ chạy từ S02 trở đi."}, "business_rules": {"ja": "実行間隔は1時間ごと（毎時00分固定、v1.3確定）", "en": "Interval fixed at hourly, :00 (confirmed v1.3)", "vi": "Chu kỳ cố định là mỗi giờ, phút 00 (đã chốt ở v1.3)"}, "external_systems": {"ja": "Windows Task Scheduler", "en": "Windows Task Scheduler", "vi": "Windows Task Scheduler"}, "database_operation": {"ja": "なし", "en": "None", "vi": "Không có"}, "output": {"ja": "プロセス起動シグナル", "en": "Process start signal", "vi": "Tín hiệu khởi chạy process"}, "postconditions": {"ja": "Pythonプロセスが起動し、S02へ進む", "en": "Python process is running; flow proceeds to S02", "vi": "Process Python đã khởi chạy, chuyển sang S02"}, "error_handling": {"ja": "タスク起動自体の失敗はOSイベントログに記録される（設計範囲外）", "en": "Task-launch failures are recorded in the OS event log (outside this design's scope)", "vi": "Lỗi khởi chạy task được ghi vào OS event log (nằm ngoài phạm vi thiết kế này)"}, "retry_rollback": {"ja": "なし（次回サイクルで再試行）", "en": "None (next cycle retries naturally)", "vi": "Không có (chu kỳ sau sẽ tự thử lại)"}, "logging": {"ja": "Windows Task Scheduler履歴", "en": "Windows Task Scheduler history", "vi": "Lịch sử Windows Task Scheduler"}, "monitoring": {"ja": "Azure Monitorハートビート監視（10.4）", "en": "Azure Monitor heartbeat (10.4)", "vi": "Giám sát heartbeat qua Azure Monitor (10.4)"}, "performance": {"ja": "起動遅延は数秒以内を想定", "en": "Startup delay expected within a few seconds", "vi": "Độ trễ khởi chạy dự kiến trong vài giây"}, "security": {"ja": "VM上のローカル/サービスアカウント権限で実行（gMSA第一候補、付録E）", "en": "Runs under a local/service account on the VM (gMSA preferred, Appendix E)", "vi": "Chạy dưới quyền service account trên VM (ưu tiên gMSA, Phụ lục E)"}, "notes": {"ja": "2フェーズ（Python→PowerShell）は同一Task内の連続実行であり、別ジョブではない", "en": "The two phases (Python → PowerShell) run sequentially within the same Task, not as separate jobs", "vi": "2 giai đoạn (Python → PowerShell) chạy nối tiếp trong cùng 1 Task, không phải 2 job riêng"}}, {"id": "S02", "phase": "trigger", "name": {"ja": "セグメントスナップショット取得・範囲判定", "en": "Segments Snapshot & Range Determination", "vi": "Lấy snapshot Segments & phán định phạm vi"}, "purpose": {"ja": "サイクル全体で参照する固定IP範囲の基準を確定する", "en": "Establish the static-range reference used throughout the cycle", "vi": "Xác định chuẩn dải IP cố định dùng xuyên suốt chu kỳ"}, "description": {"ja": "サイクル先頭でSegmentsリスト全件を取得し、DhcpScopeExistsの値に応じて各セグメントの固定IP範囲（StaticIpRangeRaw or CIDR全体）とRangeChangePendingフラグをスナップショットする。", "en": "At the start of the cycle, fetch the entire Segments list and snapshot each segment's static range (StaticIpRangeRaw or full CIDR, depending on DhcpScopeExists) along with the RangeChangePending flag.", "vi": "Đầu chu kỳ, lấy toàn bộ list Segments và snapshot dải IP cố định của từng segment (StaticIpRangeRaw hoặc toàn bộ CIDR, tùy DhcpScopeExists) cùng cờ RangeChangePending."}, "trigger": {"ja": "S01完了後、自動的に継続", "en": "Automatic continuation after S01", "vi": "Tự động tiếp diễn sau S01"}, "preconditions": {"ja": "SharePoint Segmentsリストへのアクセス権（Entra IDアプリ登録+証明書）", "en": "Access to the SharePoint Segments list (Entra ID app registration + certificate)", "vi": "Có quyền truy cập list Segments trên SharePoint (Entra ID app registration + certificate)"}, "input": {"ja": "Segmentsリスト全件（CIDR, DhcpScopeExists, StaticIpRangeRaw, IsActive, RangeChangePending等）", "en": "Full Segments list (CIDR, DhcpScopeExists, StaticIpRangeRaw, IsActive, RangeChangePending, etc.)", "vi": "Toàn bộ list Segments (CIDR, DhcpScopeExists, StaticIpRangeRaw, IsActive, RangeChangePending, v.v.)"}, "validation": {"ja": "なし（DHCPサーバへの直接照会は行わない。データ鮮度は最大30分の遅延を許容）", "en": "None (no direct DHCP server query; data freshness allows up to 30 min of lag)", "vi": "Không có (không truy vấn trực tiếp DHCP server; chấp nhận độ trễ dữ liệu tối đa 30 phút)"}, "processing": {"ja": "DhcpScopeExists=trueならStaticIpRangeRaw（正本）、falseならCIDR全体を固定IP範囲として採用", "en": "If DhcpScopeExists=true, use StaticIpRangeRaw (source of truth); if false, use the full CIDR as the static range", "vi": "Nếu DhcpScopeExists=true thì dùng StaticIpRangeRaw (bản chính); false thì dùng toàn bộ CIDR làm dải cố định"}, "business_rules": {"ja": "払い出しWorkerと同一の同期元（Segments）を参照するため定常状態では範囲判定は一致する（7.3）", "en": "References the same sync source (Segments) as the allocation worker, so range determination matches in steady state (7.3)", "vi": "Tham chiếu cùng nguồn đồng bộ (Segments) với Worker cấp phát, nên ở trạng thái ổn định phán định phạm vi sẽ trùng khớp (7.3)"}, "external_systems": {"ja": "Segments（SharePoint, Graph API経由）", "en": "Segments (SharePoint, via Graph API)", "vi": "Segments (SharePoint, qua Graph API)"}, "database_operation": {"ja": "読み取りのみ（SELECT相当）", "en": "Read-only (SELECT-equivalent)", "vi": "Chỉ đọc (tương đương SELECT)"}, "output": {"ja": "メモリ内Segmentsスナップショット", "en": "In-memory Segments snapshot", "vi": "Snapshot Segments lưu trong bộ nhớ"}, "postconditions": {"ja": "以降のS04〜S15はこのスナップショットのみを参照し、サイクル中は再取得しない", "en": "All subsequent steps (S04-S15) reference only this snapshot; it is not re-fetched mid-cycle", "vi": "Các bước sau (S04-S15) chỉ tham chiếu snapshot này, không lấy lại giữa chu kỳ"}, "error_handling": {"ja": "Graph API一時エラーは指数バックオフ（初期2秒・倍率2、429/408/5xx/接続タイムアウト対象）で再試行", "en": "Transient Graph API errors retry with exponential backoff (2s initial, x2 multiplier; targets 429/408/5xx/connection timeout)", "vi": "Lỗi tạm thời của Graph API sẽ retry theo exponential backoff (khởi đầu 2s, hệ số x2; áp dụng cho 429/408/5xx/timeout kết nối)"}, "retry_rollback": {"ja": "リトライ後も失敗した場合はサイクル全体を失敗として扱う（読み取りのみのためロールバック対象なし）", "en": "If retries are exhausted, the whole cycle is treated as failed (nothing to roll back - read-only)", "vi": "Nếu retry vẫn thất bại thì coi cả chu kỳ là thất bại (không có gì để rollback vì chỉ đọc)"}, "logging": {"ja": "Pythonロガー（INFO）", "en": "Python logger (INFO)", "vi": "Python logger (mức INFO)"}, "monitoring": {"ja": "Azure Monitorハートビート、SharePointアクセス障害の連続失敗検知（連続5サイクル、10.4）", "en": "Azure Monitor heartbeat; consecutive SharePoint access failures detected over 5 cycles (10.4)", "vi": "Heartbeat Azure Monitor; phát hiện lỗi truy cập SharePoint liên tiếp trong 5 chu kỳ (10.4)"}, "performance": {"ja": "データ鮮度遅延は最大30分まで許容（セグメント同期Worker周期）", "en": "Data freshness lag tolerated up to 30 min (segment sync worker cycle)", "vi": "Chấp nhận độ trễ dữ liệu tối đa 30 phút (chu kỳ Worker đồng bộ segment)"}, "security": {"ja": "Entra IDアプリ登録+証明書認証（ユーザーアカウント不使用）", "en": "Entra ID app registration + certificate auth (no interactive user account)", "vi": "Xác thực bằng Entra ID app registration + certificate (không dùng tài khoản người dùng)"}, "notes": {"ja": "RangeChangePendingがtrueのセグメントはS14（新規登録）で保留対象となる", "en": "Segments with RangeChangePending=true are deferred later, at S14 (new registration)", "vi": "Segment có RangeChangePending=true sẽ bị giữ lại ở bước S14 (đăng ký mới)"}}, {"id": "S03", "phase": "trigger", "name": {"ja": "ロック取得（多重起動防止）", "en": "Acquire Lock (Prevent Duplicate Runs)", "vi": "Lấy lock (chống chạy đa instance)"}, "purpose": {"ja": "PythonフェーズとPowerShellフェーズを跨ぐ多重起動を防止する", "en": "Prevent duplicate/overlapping runs spanning the Python and PowerShell phases", "vi": "Ngăn chạy chồng lặp giữa 2 giai đoạn Python và PowerShell"}, "description": {"ja": "ArpCollectionJob.lockファイルの存在・PID生存・経過時間を確認し、有効なロックが存在すればサイクルをスキップする。ロックはPython側が取得し、PowerShell側（Exit-WorkerLock）が解放する2フェーズ共通ロック。", "en": "Checks whether ArpCollectionJob.lock exists, whether its owning PID is alive, and its age. If a valid lock exists, the cycle is skipped. The lock is acquired by Python and released by PowerShell (Exit-WorkerLock) - shared across both phases.", "vi": "Kiểm tra file ArpCollectionJob.lock có tồn tại không, PID sở hữu còn sống không, và đã tồn tại bao lâu. Nếu lock còn hiệu lực thì bỏ qua chu kỳ này. Lock do Python lấy và do PowerShell giải phóng (Exit-WorkerLock) - dùng chung cho cả 2 giai đoạn."}, "trigger": {"ja": "S02完了後", "en": "After S02 completes", "vi": "Sau khi S02 hoàn tất"}, "preconditions": {"ja": "ロックディレクトリへの書き込み権限", "en": "Write access to the lock directory", "vi": "Có quyền ghi vào thư mục lock"}, "input": {"ja": "既存ロックファイル（存在すれば）：ProcessId, AcquiredAt", "en": "Existing lock file (if any): ProcessId, AcquiredAt", "vi": "File lock hiện có (nếu có): ProcessId, AcquiredAt"}, "validation": {"ja": "PID生存確認（win32api）、経過時間が1時間（=周期）を超えていないか", "en": "PID liveness check (win32api); whether elapsed time exceeds 1 hour (= cycle interval)", "vi": "Kiểm tra PID còn sống (win32api); thời gian đã trôi qua có vượt 1 giờ (= chu kỳ) không"}, "processing": {"ja": "生存かつ未失効なら例外送出しサイクル終了。それ以外（プロセス死亡または失効）はロックファイルを上書きして取得。", "en": "If alive and not expired, raise an exception and end the cycle. Otherwise (dead process or expired) overwrite the lock file to acquire it.", "vi": "Nếu còn sống và chưa hết hạn thì raise exception và kết thúc chu kỳ. Ngược lại (process đã chết hoặc hết hạn) thì ghi đè file lock để lấy lock."}, "business_rules": {"ja": "1周期を欠けても多重実行は絶対にしない（8.4）。失効基準は1時間（周期と一致）。", "en": "Missing one cycle is acceptable; overlapping runs are never allowed (8.4). Expiry threshold is 1 hour (matches the cycle interval).", "vi": "Chấp nhận thiếu 1 chu kỳ, tuyệt đối không chạy chồng (8.4). Ngưỡng hết hạn là 1 giờ (khớp chu kỳ)."}, "external_systems": {"ja": "なし（ローカルファイルシステム）", "en": "None (local filesystem only)", "vi": "Không có (chỉ dùng filesystem cục bộ)"}, "database_operation": {"ja": "なし", "en": "None", "vi": "Không có"}, "output": {"ja": "ロックファイル（ProcessId, AcquiredAt）", "en": "Lock file (ProcessId, AcquiredAt)", "vi": "File lock (ProcessId, AcquiredAt)"}, "postconditions": {"ja": "ロック取得成功時のみS04へ進む。失敗時はサイクル終了（S16）へ直行。", "en": "Only proceeds to S04 if the lock is acquired; otherwise jumps directly to cycle end (S16).", "vi": "Chỉ chuyển sang S04 khi lấy lock thành công; nếu không thì đi thẳng tới kết thúc chu kỳ (S16)."}, "error_handling": {"ja": "RuntimeError発生時はログに警告記録し、正常終了扱い（クラッシュさせない）", "en": "On RuntimeError, log a warning and end normally (does not crash)", "vi": "Khi có RuntimeError thì ghi log warning và kết thúc bình thường (không crash)"}, "retry_rollback": {"ja": "リトライなし。次回サイクル（1時間後）で再評価。", "en": "No retry; re-evaluated at the next cycle (1 hour later)", "vi": "Không retry; đánh giá lại ở chu kỳ sau (1 giờ sau)"}, "logging": {"ja": "Pythonロガー（WARNING時にメッセージ記録）", "en": "Python logger (records a message on WARNING)", "vi": "Python logger (ghi message khi ở mức WARNING)"}, "monitoring": {"ja": "ロックスキップが連続する場合は運用上の異常兆候として目視確認対象", "en": "Repeated consecutive lock-skips are an operational red flag warranting manual review", "vi": "Nếu bị skip lock liên tục nhiều lần là dấu hiệu bất thường vận hành, cần kiểm tra thủ công"}, "performance": {"ja": "ロック判定は数ミリ秒程度", "en": "Lock check completes in a few milliseconds", "vi": "Kiểm tra lock chỉ mất vài mili giây"}, "security": {"ja": "ローカルファイルシステム権限のみ（認証不要）", "en": "Local filesystem permissions only (no authentication required)", "vi": "Chỉ cần quyền filesystem cục bộ (không cần xác thực)"}, "notes": {"ja": "ロック解放はPowerShell側が担当（Exit-WorkerLockはPID所有者を検証しない）", "en": "Lock release is PowerShell's responsibility (Exit-WorkerLock does not verify the owning PID)", "vi": "Việc giải phóng lock do phía PowerShell đảm nhiệm (Exit-WorkerLock không kiểm tra PID sở hữu)"}}, {"id": "S04", "phase": "python", "name": {"ja": "対象機器取得", "en": "Read Target Devices", "vi": "Lấy danh sách thiết bị mục tiêu"}, "purpose": {"ja": "スキャン対象の機器一覧と接続情報を確定する", "en": "Determine the list of devices to scan and their connection info", "vi": "Xác định danh sách thiết bị cần scan và thông tin kết nối"}, "description": {"ja": "ArpDeviceStatusリスト全件をGraph API経由で取得し、機器ごとにDeviceType・MerakiNetworkId・TargetSegments等をメモリにキャッシュする。以降、機器ごとに順次処理する。", "en": "Fetches the entire ArpDeviceStatus list via Graph API and caches each device's DeviceType, MerakiNetworkId, TargetSegments, etc. in memory. Devices are then processed one by one, sequentially.", "vi": "Lấy toàn bộ list ArpDeviceStatus qua Graph API, cache vào bộ nhớ DeviceType, MerakiNetworkId, TargetSegments... của từng thiết bị. Sau đó xử lý tuần tự từng thiết bị."}, "trigger": {"ja": "S03（ロック取得）成功後", "en": "After S03 (lock acquired) succeeds", "vi": "Sau khi S03 (lấy lock) thành công"}, "preconditions": {"ja": "SharePoint ArpDeviceStatusリストへのアクセス権", "en": "Access to the SharePoint ArpDeviceStatus list", "vi": "Có quyền truy cập list ArpDeviceStatus trên SharePoint"}, "input": {"ja": "ArpDeviceStatusリスト全件", "en": "Full ArpDeviceStatus list", "vi": "Toàn bộ list ArpDeviceStatus"}, "validation": {"ja": "なし（DeviceType未設定機器も取得はする。除外判定はS05以降）", "en": "None (devices with unset DeviceType are still fetched; exclusion happens later at S05+)", "vi": "Không có (thiết bị chưa thiết lập DeviceType vẫn được lấy về; loại trừ diễn ra từ S05 trở đi)"}, "processing": {"ja": "SharePointの各フィールドをArpDeviceクラスへマッピングし、device_idをキーにインメモリキャッシュへ格納", "en": "Maps each SharePoint field to the ArpDevice class and stores it in an in-memory cache keyed by device_id", "vi": "Ánh xạ từng field của SharePoint vào class ArpDevice, lưu vào cache trong bộ nhớ theo khóa device_id"}, "business_rules": {"ja": "ArpDeviceStatusは機器マスターと位置付け、冗長ペアは代表1台のみ登録（6.9）", "en": "ArpDeviceStatus is the device master list; redundant pairs register only the representative unit (6.9)", "vi": "ArpDeviceStatus được xem là master thiết bị; các cặp dự phòng chỉ đăng ký 1 thiết bị đại diện (6.9)"}, "external_systems": {"ja": "ArpDeviceStatus（SharePoint, Graph API経由）", "en": "ArpDeviceStatus (SharePoint, via Graph API)", "vi": "ArpDeviceStatus (SharePoint, qua Graph API)"}, "database_operation": {"ja": "読み取りのみ（SELECT相当）", "en": "Read-only (SELECT-equivalent)", "vi": "Chỉ đọc (tương đương SELECT)"}, "output": {"ja": "メモリ内ArpDeviceオブジェクトのリスト", "en": "In-memory list of ArpDevice objects", "vi": "Danh sách đối tượng ArpDevice trong bộ nhớ"}, "postconditions": {"ja": "以降のupsert_device_status呼び出しはこのキャッシュを前提とする（未登録機器へのupsertはRuntimeError）", "en": "Later upsert_device_status calls depend on this cache; upserting a device not in the cache raises RuntimeError", "vi": "Các lần gọi upsert_device_status sau đó phụ thuộc vào cache này; upsert thiết bị chưa có trong cache sẽ gây RuntimeError"}, "error_handling": {"ja": "Graph API一時エラーは指数バックオフで再試行（設定共通）", "en": "Transient Graph API errors retry with exponential backoff (shared config)", "vi": "Lỗi tạm thời của Graph API retry theo exponential backoff (cấu hình dùng chung)"}, "retry_rollback": {"ja": "なし（読み取りのみ）", "en": "None (read-only)", "vi": "Không có (chỉ đọc)"}, "logging": {"ja": "Pythonロガー（INFO）", "en": "Python logger (INFO)", "vi": "Python logger (mức INFO)"}, "monitoring": {"ja": "機器総数の急減など異常はArpDeviceStatusマスタメンテ側で目視確認（10.6）", "en": "Anomalies such as a sudden drop in device count are reviewed manually as part of ArpDeviceStatus master maintenance (10.6)", "vi": "Bất thường như số thiết bị giảm đột ngột được kiểm tra thủ công trong bảo trì master ArpDeviceStatus (10.6)"}, "performance": {"ja": "機器数に比例（数十台規模を想定）", "en": "Scales with device count (tens of devices expected)", "vi": "Tỉ lệ theo số lượng thiết bị (dự kiến vài chục thiết bị)"}, "security": {"ja": "Entra IDアプリ登録+証明書認証", "en": "Entra ID app registration + certificate auth", "vi": "Xác thực bằng Entra ID app registration + certificate"}, "notes": {"ja": "DeviceType未設定・定義外の機器もここでは除外しない（除外はDEVICE_TYPE_DISPATCH.get()がNoneを返すS05以降）", "en": "Devices with unset/undefined DeviceType are not filtered out here - exclusion happens later when DEVICE_TYPE_DISPATCH.get() returns None (S05+)", "vi": "Thiết bị chưa thiết lập/ngoài định nghĩa DeviceType không bị lọc ở đây - việc loại trừ diễn ra sau, khi DEVICE_TYPE_DISPATCH.get() trả về None (từ S05)"}}, {"id": "S05", "phase": "python", "name": {"ja": "SNMP収集（フォールバック含む）", "en": "SNMP Collection (with Fallback)", "vi": "Thu thập qua SNMP (có fallback)"}, "purpose": {"ja": "Cisco/FortiGate/Yamaha機器のARPテーブルを取得する", "en": "Retrieve the ARP table from Cisco/FortiGate/Yamaha devices", "vi": "Lấy bảng ARP từ thiết bị Cisco/FortiGate/Yamaha"}, "description": {"ja": "pysnmpでipNetToPhysicalTableをwalkし、空ならipNetToMediaTable（旧OID）にフォールバックする。SNMPv2cコミュニティ文字列で認証。", "en": "Walks ipNetToPhysicalTable via pysnmp; if empty, falls back to the older ipNetToMediaTable OID. Authenticates with an SNMPv2c community string.", "vi": "Walk bảng ipNetToPhysicalTable qua pysnmp; nếu rỗng thì fallback sang OID cũ ipNetToMediaTable. Xác thực bằng SNMPv2c community string."}, "trigger": {"ja": "DeviceType ∈ {CiscoIOS, FortiGate, YamahaRTX}", "en": "DeviceType is one of {CiscoIOS, FortiGate, YamahaRTX}", "vi": "DeviceType thuộc {CiscoIOS, FortiGate, YamahaRTX}"}, "preconditions": {"ja": "機器へのネットワーク到達性、SNMP community stringの事前設定（付録C.6）", "en": "Network reachability to the device; SNMP community string pre-configured (Appendix C.6)", "vi": "Có kết nối mạng tới thiết bị; đã cấu hình sẵn SNMP community string (Phụ lục C.6)"}, "input": {"ja": "device.device_fqdn, SNMP community string（secret_store経由）", "en": "device.device_fqdn, SNMP community string (via secret_store)", "vi": "device.device_fqdn, SNMP community string (lấy qua secret_store)"}, "validation": {"ja": "SNMPエラー応答（noSuchObject/noSuchInstance）でテーブル終端・非対応を判定", "en": "SNMP error responses (noSuchObject/noSuchInstance) indicate table end or lack of support", "vi": "Phản hồi lỗi SNMP (noSuchObject/noSuchInstance) cho biết đã hết bảng hoặc thiết bị không hỗ trợ"}, "processing": {"ja": "ipNetToPhysicalTable(OID 1.3.6.1.2.1.4.35.1.4)をwalk。結果が空ならipNetToMediaTable(OID 1.3.6.1.2.1.4.22.1.2)を再walk。OID末尾4オクテットをIPv4として解析、値をMACとして抽出。", "en": "Walk ipNetToPhysicalTable (OID 1.3.6.1.2.1.4.35.1.4). If empty, re-walk ipNetToMediaTable (OID 1.3.6.1.2.1.4.22.1.2). Parses the trailing 4 OID octets as IPv4 and the value as the MAC.", "vi": "Walk ipNetToPhysicalTable (OID 1.3.6.1.2.1.4.35.1.4). Nếu rỗng thì walk lại ipNetToMediaTable (OID 1.3.6.1.2.1.4.22.1.2). Phân tích 4 octet cuối OID thành IPv4, giá trị là MAC."}, "business_rules": {"ja": "タイムアウト5秒・リトライ2回・並列度1（逐次）が初期値。並列度のみパイロット実測で調整可（v1.3）。", "en": "Defaults: 5s timeout, 2 retries, parallelism 1 (sequential). Only parallelism may be tuned based on pilot measurements (v1.3).", "vi": "Giá trị mặc định: timeout 5 giây, retry 2 lần, độ song song 1 (tuần tự). Chỉ độ song song được phép điều chỉnh theo đo pilot thực tế (v1.3)."}, "external_systems": {"ja": "対象ネットワーク機器（SNMP, UDP/161）", "en": "Target network device (SNMP, UDP/161)", "vi": "Thiết bị mạng mục tiêu (SNMP, UDP/161)"}, "database_operation": {"ja": "なし（IPAM/SharePointへの書き込みなし）", "en": "None (no writes to IPAM/SharePoint)", "vi": "Không có (không ghi vào IPAM/SharePoint)"}, "output": {"ja": "ArpEntryリスト（ip_address, mac_address, observed_at, device_id）", "en": "List of ArpEntry (ip_address, mac_address, observed_at, device_id)", "vi": "Danh sách ArpEntry (ip_address, mac_address, observed_at, device_id)"}, "postconditions": {"ja": "収集結果はall_entriesへ追加され、S08（結果判定）へ進む", "en": "Results are appended to all_entries; flow proceeds to S08 (result evaluation)", "vi": "Kết quả được thêm vào all_entries, chuyển sang S08 (đánh giá kết quả)"}, "error_handling": {"ja": "接続エラー・タイムアウトは例外送出→main.pyの_process_deviceがキャッチしS08で失敗として計上", "en": "Connection errors/timeouts raise an exception, caught by main.py's _process_device and counted as a failure at S08", "vi": "Lỗi kết nối/timeout sẽ raise exception, được _process_device trong main.py bắt và tính là thất bại ở S08"}, "retry_rollback": {"ja": "SNMPレベルで2回リトライ（ライブラリ内蔵）。機器レベルでのリトライはなく、次サイクル（1時間後）まで待つ。", "en": "2 retries at the SNMP level (built into the library). No device-level retry - waits for the next cycle (1 hour later).", "vi": "Retry 2 lần ở mức SNMP (tích hợp sẵn trong thư viện). Không retry ở mức thiết bị - chờ đến chu kỳ sau (1 giờ sau)."}, "logging": {"ja": "Pythonロガー（例外時はexception traceback記録）", "en": "Python logger (records exception traceback on failure)", "vi": "Python logger (ghi traceback exception khi lỗi)"}, "monitoring": {"ja": "ConsecutiveFailureCount経由でS08が72時間到達を監視", "en": "Monitored indirectly via ConsecutiveFailureCount at S08 (72h threshold)", "vi": "Được giám sát gián tiếp qua ConsecutiveFailureCount ở S08 (ngưỡng 72 giờ)"}, "performance": {"ja": "機器1台あたりタイムアウト5秒×リトライ2回が上限（≒15秒/機器の最悪ケース）", "en": "Up to 5s timeout x 2 retries per device (worst case ~15s/device)", "vi": "Tối đa 5 giây timeout x 2 lần retry mỗi thiết bị (trường hợp xấu nhất ~15 giây/thiết bị)"}, "security": {"ja": "SNMP community string（読み取り専用）をsecret_store経由で取得、コード内ハードコードなし（付録E）", "en": "SNMP community string (read-only) retrieved via secret_store; never hard-coded (Appendix E)", "vi": "Community string SNMP (chỉ đọc) lấy qua secret_store, không hard-code trong code (Phụ lục E)"}, "notes": {"ja": "pysnmp 6.x系のAPI仕様は本番SNMP環境での確認待ち（QA記録あり）", "en": "pysnmp 6.x API details are pending confirmation against a real SNMP environment (tracked as a QA item)", "vi": "Chi tiết API của pysnmp 6.x còn chờ xác nhận trên môi trường SNMP thật (đã ghi nhận trong mục QA)"}}, {"id": "S06", "phase": "python", "name": {"ja": "Meraki Dashboard API収集", "en": "Meraki Dashboard API Collection", "vi": "Thu thập qua Meraki Dashboard API"}, "purpose": {"ja": "Meraki MX機器配下のクライアント一覧をクラウドAPI経由で取得する", "en": "Retrieve the client list behind a Meraki MX device via the cloud API", "vi": "Lấy danh sách client phía sau thiết bị Meraki MX qua cloud API"}, "description": {"ja": "Meraki公式SDKでGET /networks/{MerakiNetworkId}/clientsを呼び出し、直近1時間（timespan=3600秒）のクライアントIP/MACを取得する。", "en": "Calls GET /networks/{MerakiNetworkId}/clients via the official Meraki SDK, retrieving client IP/MAC observed within the last 1 hour (timespan=3600s).", "vi": "Gọi GET /networks/{MerakiNetworkId}/clients qua Meraki SDK chính thức, lấy IP/MAC client trong 1 giờ gần nhất (timespan=3600 giây)."}, "trigger": {"ja": "DeviceType = MerakiMX", "en": "DeviceType = MerakiMX", "vi": "DeviceType = MerakiMX"}, "preconditions": {"ja": "MerakiNetworkIdが設定済み、APIキーがsecret_storeに登録済み", "en": "MerakiNetworkId configured; API key registered in secret_store", "vi": "Đã cấu hình MerakiNetworkId; API key đã được đăng ký trong secret_store"}, "input": {"ja": "device.meraki_network_id, Meraki APIキー（Read-Only）", "en": "device.meraki_network_id, Meraki API key (Read-Only)", "vi": "device.meraki_network_id, API key Meraki (Read-Only)"}, "validation": {"ja": "MerakiNetworkId未設定ならValueError送出（MerakiOrgIdは収集処理では参照しない）", "en": "Raises ValueError if MerakiNetworkId is unset (MerakiOrgId is never referenced during collection)", "vi": "Raise ValueError nếu MerakiNetworkId chưa thiết lập (MerakiOrgId không được tham chiếu trong xử lý thu thập)"}, "processing": {"ja": "clients配列からip/macが両方存在するエントリのみArpEntryへ変換。lastSeenがあればそれをobserved_atとする。", "en": "Converts only entries with both ip and mac present into ArpEntry; uses lastSeen as observed_at when available.", "vi": "Chỉ chuyển các entry có cả ip và mac thành ArpEntry; dùng lastSeen làm observed_at nếu có."}, "business_rules": {"ja": "MerakiNetworkIdのみ使用（1機器=1ネットワーク前提、6.9）。MerakiOrgIdは台帳参照専用。", "en": "Only MerakiNetworkId is used (1 device = 1 network, per 6.9); MerakiOrgId is record-keeping only.", "vi": "Chỉ dùng MerakiNetworkId (giả định 1 thiết bị = 1 network, theo 6.9); MerakiOrgId chỉ dùng để ghi sổ."}, "external_systems": {"ja": "Meraki Dashboard API（クラウド、HTTPS）", "en": "Meraki Dashboard API (cloud, HTTPS)", "vi": "Meraki Dashboard API (cloud, HTTPS)"}, "database_operation": {"ja": "なし", "en": "None", "vi": "Không có"}, "output": {"ja": "ArpEntryリスト（同上）", "en": "List of ArpEntry (same as S05)", "vi": "Danh sách ArpEntry (giống S05)"}, "postconditions": {"ja": "収集結果はall_entriesへ追加、S08へ進む", "en": "Results appended to all_entries; proceeds to S08", "vi": "Kết quả được thêm vào all_entries, chuyển sang S08"}, "error_handling": {"ja": "SDKレベルでmaximum_retries=2の内蔵リトライ。例外は_process_deviceがキャッチしS08で失敗計上。", "en": "SDK-level built-in retry (maximum_retries=2). Exceptions caught by _process_device and counted as a failure at S08.", "vi": "SDK có retry tích hợp sẵn (maximum_retries=2). Exception được _process_device bắt và tính là thất bại ở S08."}, "retry_rollback": {"ja": "SDK内蔵2回リトライ。機器レベルでは次サイクルまで待つ。", "en": "2 built-in SDK retries; at the device level, waits for the next cycle", "vi": "SDK retry sẵn 2 lần; ở mức thiết bị thì chờ đến chu kỳ sau"}, "logging": {"ja": "Python logging + Meraki SDKログは抑制（suppress_logging=True）", "en": "Python logging; Meraki SDK's own logging is suppressed (suppress_logging=True)", "vi": "Python logging; log riêng của Meraki SDK bị tắt (suppress_logging=True)"}, "monitoring": {"ja": "ConsecutiveFailureCount経由（S08）", "en": "Via ConsecutiveFailureCount at S08", "vi": "Qua ConsecutiveFailureCount ở S08"}, "performance": {"ja": "timespan=3600秒（収集周期1時間と一致）。レート制限の実測値は付録C.2で調査中。", "en": "timespan=3600s (matches the 1h collection cycle). Actual rate-limit behavior is still under investigation (Appendix C.2).", "vi": "timespan=3600 giây (khớp chu kỳ thu thập 1 giờ). Giới hạn rate-limit thực tế đang được khảo sát (Phụ lục C.2)."}, "security": {"ja": "APIキーはRead-Only権限、secret_store経由で取得（8.2/9.2）", "en": "API key is Read-Only, retrieved via secret_store (8.2/9.2)", "vi": "API key chỉ có quyền Read-Only, lấy qua secret_store (8.2/9.2)"}, "notes": {"ja": "SNMPを一切使用しない、Meraki専用経路", "en": "Does not use SNMP at all - a Meraki-only path", "vi": "Hoàn toàn không dùng SNMP - đường riêng cho Meraki"}}, {"id": "S07", "phase": "python", "name": {"ja": "未定義DeviceTypeのスキップ", "en": "Skip Unknown DeviceType", "vi": "Bỏ qua DeviceType không xác định"}, "purpose": {"ja": "収集方式が判定できない機器を安全側にスキップする", "en": "Safely skip devices whose collection method cannot be determined", "vi": "Bỏ qua an toàn các thiết bị không xác định được phương thức thu thập"}, "description": {"ja": "DeviceTypeが未設定または定義外の機器はDEVICE_TYPE_DISPATCH.get()がNoneを返し、収集を行わずログのみ記録する。", "en": "When DeviceType is unset or outside the defined set, DEVICE_TYPE_DISPATCH.get() returns None - the device is not collected, only logged.", "vi": "Khi DeviceType chưa thiết lập hoặc ngoài tập định nghĩa, DEVICE_TYPE_DISPATCH.get() trả về None - không thu thập, chỉ ghi log."}, "trigger": {"ja": "DeviceType が CiscoIOS/FortiGate/YamahaRTX/MerakiMX のいずれでもない", "en": "DeviceType is not one of CiscoIOS/FortiGate/YamahaRTX/MerakiMX", "vi": "DeviceType không thuộc CiscoIOS/FortiGate/YamahaRTX/MerakiMX"}, "preconditions": {"ja": "なし", "en": "None", "vi": "Không có"}, "input": {"ja": "device.device_type", "en": "device.device_type", "vi": "device.device_type"}, "validation": {"ja": "辞書ルックアップ（DEVICE_TYPE_DISPATCH）", "en": "Dictionary lookup (DEVICE_TYPE_DISPATCH)", "vi": "Tra cứu dictionary (DEVICE_TYPE_DISPATCH)"}, "processing": {"ja": "warningログを出力し、upsert_device_status(success=False)を直接呼び出す（収集関数は一切呼ばない）", "en": "Logs a warning and directly calls upsert_device_status(success=False) - the collection function is never invoked", "vi": "Ghi log warning và gọi trực tiếp upsert_device_status(success=False) - không gọi hàm thu thập nào cả"}, "business_rules": {"ja": "サイレントエラー禁止（8.4）の原則により、スキップも必ず失敗としてカウントする", "en": "Per the \"no silent errors\" principle (8.4), even a skip is always counted as a failure", "vi": "Theo nguyên tắc \"cấm silent error\" (8.4), kể cả bị skip cũng phải tính là 1 lần thất bại"}, "external_systems": {"ja": "なし", "en": "None", "vi": "Không có"}, "database_operation": {"ja": "ArpDeviceStatus.LastErrorMessageへの書き込み（S08で実施）", "en": "Write to ArpDeviceStatus.LastErrorMessage (performed at S08)", "vi": "Ghi vào ArpDeviceStatus.LastErrorMessage (thực hiện ở S08)"}, "output": {"ja": "エラーメッセージ「DeviceType不正: ...」", "en": "Error message \"Invalid DeviceType: ...\"", "vi": "Thông báo lỗi \"DeviceType không hợp lệ: ...\""}, "postconditions": {"ja": "S08（失敗として記録）へ進む。72時間連続でFailed遷移経路に合流。", "en": "Proceeds to S08 (recorded as a failure); joins the same path as the 72h-consecutive-failure -> Failed transition", "vi": "Chuyển sang S08 (ghi nhận là thất bại); nhập chung đường chuyển Failed sau 72 giờ liên tục"}, "error_handling": {"ja": "例外ではなく分岐処理（正常フロー内で処理）", "en": "Handled as a branch, not an exception (part of the normal flow)", "vi": "Xử lý bằng nhánh rẽ, không phải exception (nằm trong luồng bình thường)"}, "retry_rollback": {"ja": "なし（DeviceType修正は人手対応、10.6マスタメンテ）", "en": "None (fixing DeviceType requires manual master-data maintenance, 10.6)", "vi": "Không có (sửa DeviceType cần thao tác thủ công, bảo trì master theo 10.6)"}, "logging": {"ja": "Pythonロガー（WARNING）", "en": "Python logger (WARNING)", "vi": "Python logger (mức WARNING)"}, "monitoring": {"ja": "72時間到達でCurrentStatus=Failedとなりnkis-networkへ通知（S08）", "en": "Reaching 72h sets CurrentStatus=Failed and notifies nkis-network (S08)", "vi": "Đạt 72 giờ sẽ chuyển CurrentStatus=Failed và thông báo tới nkis-network (S08)"}, "performance": {"ja": "即時（ネットワークI/Oなし）", "en": "Immediate (no network I/O)", "vi": "Tức thì (không có I/O mạng)"}, "security": {"ja": "なし", "en": "None", "vi": "Không có"}, "notes": {"ja": "機器行追加時の初期値投入（DeviceType含む）は必須（10.6・付録C.6）", "en": "Initial value entry (including DeviceType) is mandatory when adding a device row (10.6, Appendix C.6)", "vi": "Bắt buộc nhập giá trị khởi tạo (gồm DeviceType) khi thêm dòng thiết bị mới (10.6, Phụ lục C.6)"}}, {"id": "S08", "phase": "python", "name": {"ja": "ArpDeviceStatus更新・失敗閾値処理", "en": "Upsert ArpDeviceStatus & Failure Threshold", "vi": "Cập nhật ArpDeviceStatus & xử lý ngưỡng thất bại"}, "purpose": {"ja": "機器ごとの収集成否を記録し、72時間連続失敗を検知して通知する", "en": "Record each device's collection outcome and detect/notify on 72h of consecutive failures", "vi": "Ghi nhận kết quả thu thập từng thiết bị và phát hiện/thông báo khi thất bại liên tục 72 giờ"}, "description": {"ja": "機器処理完了ごとにcompute_next_device_state（純粋関数）で次状態を計算し、ArpDeviceStatusをUpsert。成功時は0/OKへリセット、失敗時はカウント+1し、72到達で初回通知、72超過後は24時間ごとにリマインダ。", "en": "After each device is processed, compute_next_device_state (a pure function) computes the next state and upserts ArpDeviceStatus. Success resets to 0/OK; failure increments the count, notifies once at exactly 72, then reminds every 24h thereafter.", "vi": "Sau khi xử lý xong mỗi thiết bị, compute_next_device_state (hàm thuần) tính trạng thái kế tiếp và Upsert ArpDeviceStatus. Thành công thì reset về 0/OK; thất bại thì tăng đếm, thông báo 1 lần khi đạt 72, sau đó nhắc lại mỗi 24 giờ."}, "trigger": {"ja": "S05/S06/S07のいずれか完了後（機器ごと）", "en": "After any of S05/S06/S07 completes, per device", "vi": "Sau khi hoàn tất S05/S06/S07 (theo từng thiết bị)"}, "preconditions": {"ja": "get_target_devices()（S04）実行済みでキャッシュに当該device_idが存在すること", "en": "get_target_devices() (S04) has run and the device_id exists in the cache", "vi": "get_target_devices() (S04) đã chạy và device_id đó đã có trong cache"}, "input": {"ja": "success（bool）, error_message, キャッシュ済みConsecutiveFailureCount/LastNotifiedAt", "en": "success (bool), error_message, cached ConsecutiveFailureCount/LastNotifiedAt", "vi": "success (bool), error_message, ConsecutiveFailureCount/LastNotifiedAt đã cache"}, "validation": {"ja": "キャッシュ未登録device_idへのupsertはRuntimeError", "en": "Upserting an uncached device_id raises RuntimeError", "vi": "Upsert device_id chưa có trong cache sẽ gây RuntimeError"}, "processing": {"ja": "成功→(0,\"OK\",None)。失敗でカウント<72→(count+1,\"OK\",None)。=72→(\"Failed\",\"failed\"通知)。>72かつ24h経過→(\"Failed\",\"reminder\"通知)。", "en": "Success -> (0, \"OK\", None). Failure with count<72 -> (count+1, \"OK\", None). =72 -> (\"Failed\", notify \"failed\"). >72 and >=24h elapsed -> (\"Failed\", notify \"reminder\").", "vi": "Thành công -> (0, \"OK\", None). Thất bại với count<72 -> (count+1, \"OK\", None). =72 -> (\"Failed\", thông báo \"failed\"). >72 và đã qua >=24h -> (\"Failed\", thông báo \"reminder\")."}, "business_rules": {"ja": "Failed→OK遷移時は通知しない。閾値72（時間）・リマインダ間隔24時間は固定値。", "en": "No notification on Failed->OK transition. Threshold (72h) and reminder interval (24h) are fixed constants.", "vi": "Không thông báo khi chuyển Failed->OK. Ngưỡng 72 giờ và chu kỳ nhắc lại 24 giờ là hằng số cố định."}, "external_systems": {"ja": "ArpDeviceStatus（SharePoint, Graph API）、nkis-network（SMTPリレー、通知時のみ）", "en": "ArpDeviceStatus (SharePoint, Graph API); nkis-network (SMTP relay, only when notifying)", "vi": "ArpDeviceStatus (SharePoint, Graph API); nkis-network (SMTP relay, chỉ khi có thông báo)"}, "database_operation": {"ja": "UPDATE相当（PATCH: LastAttemptAt, ConsecutiveFailureCount, CurrentStatus, LastSuccessAt/LastErrorMessage, 通知時のみLastNotifiedAt）", "en": "UPDATE-equivalent (PATCH: LastAttemptAt, ConsecutiveFailureCount, CurrentStatus, LastSuccessAt/LastErrorMessage, and LastNotifiedAt only when notifying)", "vi": "Tương đương UPDATE (PATCH: LastAttemptAt, ConsecutiveFailureCount, CurrentStatus, LastSuccessAt/LastErrorMessage, chỉ ghi LastNotifiedAt khi có thông báo)"}, "output": {"ja": "更新後のArpDeviceStatusレコード、（該当時）SMTPメール", "en": "Updated ArpDeviceStatus record; (when applicable) an SMTP email", "vi": "Bản ghi ArpDeviceStatus đã cập nhật; (nếu có) email qua SMTP"}, "postconditions": {"ja": "インメモリキャッシュも同時更新。次機器処理またはS09（全機器完了後）へ進む。", "en": "The in-memory cache is updated too. Proceeds to the next device or to S09 once all devices are done.", "vi": "Cache trong bộ nhớ cũng được cập nhật đồng thời. Chuyển sang thiết bị tiếp theo hoặc S09 (khi xong tất cả thiết bị)."}, "error_handling": {"ja": "upsert自体（Graph API書込）が失敗しても最外周try/exceptで捕捉し、他機器の処理を継続（8.4：機器単位の障害隔離）", "en": "Even if the upsert itself (Graph API write) fails, an outer try/except catches it so other devices still process (8.4: fault isolation per device)", "vi": "Ngay cả khi bản thân việc upsert (ghi Graph API) thất bại, try/except ngoài cùng vẫn bắt được lỗi để các thiết bị khác tiếp tục xử lý (8.4: cô lập sự cố theo từng thiết bị)"}, "retry_rollback": {"ja": "メール送信失敗はログのみ、自動再送なし（8.4）", "en": "Email send failures are only logged, with no automatic resend (8.4)", "vi": "Gửi email thất bại chỉ ghi log, không tự động gửi lại (8.4)"}, "logging": {"ja": "Pythonロガー（INFO/WARNING/EXCEPTION）", "en": "Python logger (INFO/WARNING/EXCEPTION)", "vi": "Python logger (INFO/WARNING/EXCEPTION)"}, "monitoring": {"ja": "CurrentStatus=Failedの機器は自動削除Worker側でスキップ保護対象（7.4）", "en": "Devices with CurrentStatus=Failed are protected from auto-deletion by the separate auto-delete worker (7.4)", "vi": "Thiết bị có CurrentStatus=Failed được bảo vệ khỏi tự động xóa ở Worker xóa riêng (7.4)"}, "performance": {"ja": "機器ごとに1回のPATCH呼び出し（数百ms程度）", "en": "One PATCH call per device (roughly hundreds of ms)", "vi": "1 lần gọi PATCH cho mỗi thiết bị (khoảng vài trăm ms)"}, "security": {"ja": "SMTP送信は社内リレー経由（外部インターネットへの直接送信不可、Worker IPは事前許可リスト登録要）", "en": "SMTP sends go through the internal relay (no direct external internet send; the Worker's IP must be pre-allow-listed)", "vi": "Gửi SMTP qua relay nội bộ (không gửi trực tiếp ra internet; IP của Worker phải được thêm vào danh sách cho phép từ trước)"}, "notes": {"ja": "compute_next_device_stateはI/Oを含まない純粋関数として実装（ユニットテスト容易性のため）", "en": "compute_next_device_state is implemented as an I/O-free pure function for testability", "vi": "compute_next_device_state được cài đặt là hàm thuần không có I/O, để dễ viết unit test"}}, {"id": "S09", "phase": "python", "name": {"ja": "集約・JSON出力", "en": "Aggregate & Export JSON", "vi": "Tổng hợp & xuất JSON"}, "purpose": {"ja": "全機器の収集結果をIP単位でまとめ、PowerShellフェーズへ受け渡す", "en": "Consolidate all devices' collection results by IP and hand off to the PowerShell phase", "vi": "Tổng hợp kết quả thu thập của tất cả thiết bị theo IP và bàn giao sang giai đoạn PowerShell"}, "description": {"ja": "全機器処理完了後、all_entriesをJSONへシリアライズしファイル出力する。IP単位の集約・分類（固定範囲/動的プール）はこの時点では行わず、生データのまま受け渡す。", "en": "After all devices are processed, serializes all_entries to JSON and writes it to a file. IP-level aggregation and static/dynamic classification are not done here - raw data is handed off as-is.", "vi": "Sau khi xử lý xong tất cả thiết bị, serialize all_entries thành JSON và ghi ra file. Việc tổng hợp theo IP và phân loại cố định/dynamic chưa thực hiện ở đây - dữ liệu thô được bàn giao nguyên trạng."}, "trigger": {"ja": "全機器のS05〜S08完了後", "en": "After S05-S08 complete for all devices", "vi": "Sau khi S05-S08 hoàn tất cho tất cả thiết bị"}, "preconditions": {"ja": "出力先ディレクトリへの書き込み権限", "en": "Write access to the output directory", "vi": "Có quyền ghi vào thư mục output"}, "input": {"ja": "all_entries（ArpEntryのリスト）", "en": "all_entries (list of ArpEntry)", "vi": "all_entries (danh sách ArpEntry)"}, "validation": {"ja": "なし", "en": "None", "vi": "Không có"}, "processing": {"ja": "dataclasses.asdictでdict化、observed_atをISO 8601文字列化、JSON（ensure_ascii=False, indent=2）で書き出し", "en": "Converts to dict via dataclasses.asdict, formats observed_at as an ISO 8601 string, writes JSON (ensure_ascii=False, indent=2)", "vi": "Chuyển thành dict qua dataclasses.asdict, định dạng observed_at thành chuỗi ISO 8601, ghi ra JSON (ensure_ascii=False, indent=2)"}, "business_rules": {"ja": "PythonはIPAMを直接操作しない（6.1/7.3、モジュール制約による設計上の分離）", "en": "Python never touches IPAM directly (6.1/7.3 - an architectural separation driven by the module constraint)", "vi": "Python không bao giờ thao tác trực tiếp vào IPAM (6.1/7.3 - tách biệt kiến trúc do giới hạn module)"}, "external_systems": {"ja": "なし（ローカルファイルシステム）", "en": "None (local filesystem only)", "vi": "Không có (chỉ dùng filesystem cục bộ)"}, "database_operation": {"ja": "なし", "en": "None", "vi": "Không có"}, "output": {"ja": "arp-collection-result.json（D:\\ipam-worker\\logs\\）", "en": "arp-collection-result.json (D:\\ipam-worker\\logs\\)", "vi": "arp-collection-result.json (D:\\ipam-worker\\logs\\)"}, "postconditions": {"ja": "ファイル出力完了後、Pythonプロセス終了。同一タスク内でPowerShellスクリプトが起動（S10）。", "en": "After the file is written, the Python process exits. The PowerShell script then starts within the same task (S10).", "vi": "Sau khi ghi file xong, process Python kết thúc. Script PowerShell khởi chạy trong cùng task (S10)."}, "error_handling": {"ja": "ファイル書き込み失敗は例外として送出され、プロセス異常終了（ロックは解放されないため次サイクルは1時間失効を待つ）", "en": "File-write failures raise an exception and the process exits abnormally (the lock is not released, so the next cycle waits for the 1h expiry)", "vi": "Ghi file thất bại sẽ raise exception và process kết thúc bất thường (lock không được giải phóng, chu kỳ sau phải chờ hết hạn 1 giờ)"}, "retry_rollback": {"ja": "なし", "en": "None", "vi": "Không có"}, "logging": {"ja": "「ARP収集完了: N entry, M台」のサマリログ", "en": "Summary log \"ARP collection complete: N entries, M devices\"", "vi": "Log tổng kết \"Thu thập ARP hoàn tất: N entry, M thiết bị\""}, "monitoring": {"ja": "ファイル未生成が続く場合はPowerShell側（S10）でGet-Content失敗として検知", "en": "Persistent missing output is detected on the PowerShell side (S10) as a Get-Content failure", "vi": "Nếu file liên tục không được tạo, phía PowerShell (S10) sẽ phát hiện qua lỗi Get-Content"}, "performance": {"ja": "エントリ数に比例、通常は数百件規模を想定", "en": "Scales with entry count; typically expected in the hundreds", "vi": "Tỉ lệ theo số lượng entry, thường dự kiến vài trăm bản ghi"}, "security": {"ja": "ローカルファイル（VM内、D:ドライブ）。ネットワーク送信なし。", "en": "Local file (on the VM, D: drive); no network transmission", "vi": "File cục bộ (trong VM, ổ D:); không truyền qua mạng"}, "notes": {"ja": "固定範囲/動的プールの判定はS10（PowerShell側）がその時点のSegmentsスナップショットで行う", "en": "Static-range/dynamic-pool classification is performed later, at S10 (PowerShell side), using its own Segments snapshot", "vi": "Việc phân loại dải cố định/dynamic pool được thực hiện sau, ở S10 (phía PowerShell), dùng snapshot Segments riêng của nó"}}, {"id": "S10", "phase": "reflect", "name": {"ja": "PowerShell反映開始・動的プール除外", "en": "Run Reflector & Dynamic-Pool Filter", "vi": "Chạy Reflector & lọc dynamic pool"}, "purpose": {"ja": "Python収集結果をIPAMへ反映する処理を開始し、対象外IPを除外する", "en": "Start reflecting the Python collection results into IPAM, filtering out out-of-scope IPs", "vi": "Bắt đầu phản ánh kết quả thu thập của Python vào IPAM, loại trừ các IP ngoài phạm vi"}, "description": {"ja": "Invoke-ReflectArpResults.ps1がJSON結果ファイルとSegments最新スナップショットを読み込み、IPごとにGet-SegmentForIp（Test-IpAddressInStaticRange）で所属セグメントを判定。固定範囲外（動的プールまたはどのセグメントにも属さない）はスキップする。", "en": "Invoke-ReflectArpResults.ps1 reads the JSON result file and a fresh Segments snapshot, then for each IP determines its owning segment via Get-SegmentForIp (Test-IpAddressInStaticRange). IPs outside every static range (dynamic pool or unmatched) are skipped.", "vi": "Invoke-ReflectArpResults.ps1 đọc file JSON kết quả và snapshot Segments mới nhất, sau đó với mỗi IP xác định segment sở hữu qua Get-SegmentForIp (Test-IpAddressInStaticRange). IP nằm ngoài mọi dải cố định (thuộc dynamic pool hoặc không khớp segment nào) sẽ bị bỏ qua."}, "trigger": {"ja": "S09（JSON出力）完了後、同一タスク内で自動起動", "en": "Automatically starts within the same task after S09 (JSON export) completes", "vi": "Tự động khởi chạy trong cùng task sau khi S09 (xuất JSON) hoàn tất"}, "preconditions": {"ja": "arp-collection-result.jsonが存在すること、SharePoint Segmentsへのアクセス権", "en": "arp-collection-result.json exists; access to SharePoint Segments", "vi": "File arp-collection-result.json tồn tại; có quyền truy cập Segments trên SharePoint"}, "input": {"ja": "arp-collection-result.json、Segmentsリスト全件（この時点で再取得、S02とは別スナップショット）", "en": "arp-collection-result.json; the full Segments list (re-fetched here, a separate snapshot from S02)", "vi": "arp-collection-result.json; toàn bộ list Segments (lấy lại tại đây, snapshot khác với S02)"}, "validation": {"ja": "各IPが固定範囲に属するか（Test-IpAddressInStaticRange）", "en": "Whether each IP falls within a static range (Test-IpAddressInStaticRange)", "vi": "Mỗi IP có thuộc dải cố định hay không (Test-IpAddressInStaticRange)"}, "processing": {"ja": "entryごとにGet-SegmentForIpを呼び出し、$nullなら次のentryへcontinue（IPAM登録・LastSeenAt更新の対象外）", "en": "Calls Get-SegmentForIp per entry; if $null, continues to the next entry (excluded from IPAM registration / LastSeenAt update)", "vi": "Gọi Get-SegmentForIp cho từng entry; nếu $null thì continue sang entry tiếp theo (loại khỏi đăng ký IPAM / cập nhật LastSeenAt)"}, "business_rules": {"ja": "動的プール（スコープ範囲−除外範囲）内のIPはDHCPクライアントとみなし台帳化しない（v1.1確定）", "en": "IPs within the dynamic pool (scope range minus exclusion range) are treated as DHCP clients and never ledgered (confirmed v1.1)", "vi": "IP trong dynamic pool (scope range trừ exclusion range) được xem là DHCP client và không lập sổ (đã chốt v1.1)"}, "external_systems": {"ja": "なし（このステップ自体はファイル+メモリ処理）", "en": "None (this step itself is file + in-memory processing)", "vi": "Không có (bản thân bước này chỉ xử lý file + bộ nhớ)"}, "database_operation": {"ja": "なし（判定のみ、書き込みはS12以降）", "en": "None (classification only - writes happen from S12 onward)", "vi": "Không có (chỉ phân loại, việc ghi diễn ra từ S12 trở đi)"}, "output": {"ja": "固定範囲内と判定されたentry（segment付き）", "en": "Entries classified as within a static range (with their segment attached)", "vi": "Các entry được phân loại thuộc dải cố định (kèm segment tương ứng)"}, "postconditions": {"ja": "固定範囲内entryのみS11（Mutex取得）へ進む", "en": "Only in-static-range entries proceed to S11 (mutex acquisition)", "vi": "Chỉ các entry thuộc dải cố định mới chuyển sang S11 (lấy mutex)"}, "error_handling": {"ja": "$ErrorActionPreference='Stop'により未捕捉例外はスクリプト全体を停止（ロックはfinally節では解放されない設計のため要注意）", "en": "With $ErrorActionPreference='Stop', an uncaught exception halts the entire script (note: the lock is not released in a finally block by this design)", "vi": "Với $ErrorActionPreference='Stop', exception không được bắt sẽ dừng toàn bộ script (lưu ý: lock không được giải phóng trong khối finally theo thiết kế này)"}, "retry_rollback": {"ja": "entry単位のリトライなし。次サイクル（1時間後）のARP再検知に委ねる。", "en": "No per-entry retry; relies on the next cycle's (1h later) ARP re-detection", "vi": "Không retry theo từng entry; phụ thuộc vào việc ARP phát hiện lại ở chu kỳ sau (1 giờ sau)"}, "logging": {"ja": "Write-WorkerLog（IpamWorkerCommon.psm1経由）", "en": "Write-WorkerLog (via IpamWorkerCommon.psm1)", "vi": "Write-WorkerLog (qua IpamWorkerCommon.psm1)"}, "monitoring": {"ja": "処理entry数のサマリログ（イベントID 1301）", "en": "Summary log of processed entry count (event 1301)", "vi": "Log tổng kết số entry đã xử lý (event 1301)"}, "performance": {"ja": "entry数に比例、セグメント数×IP数の線形探索（Get-SegmentForIp）", "en": "Scales with entry count; linear search over segments x IPs (Get-SegmentForIp)", "vi": "Tỉ lệ theo số entry; tìm kiếm tuyến tính theo số segment x số IP (Get-SegmentForIp)"}, "security": {"ja": "SharePointアクセスはEntra IDアプリ登録+証明書（Python側と共通の認証方式）", "en": "SharePoint access uses Entra ID app registration + certificate (same auth method as the Python side)", "vi": "Truy cập SharePoint dùng Entra ID app registration + certificate (cùng phương thức xác thực với phía Python)"}, "notes": {"ja": "このSegmentsスナップショットはS02のものとは別（PowerShell実行時点で再取得）", "en": "This Segments snapshot is distinct from S02's - it is re-fetched at PowerShell execution time", "vi": "Snapshot Segments này khác với snapshot ở S02 - được lấy lại tại thời điểm PowerShell chạy"}}, {"id": "S11", "phase": "reflect", "name": {"ja": "IPミューテックス取得・IPAM照会", "en": "Acquire Per-IP Mutex & Query IPAM", "vi": "Lấy mutex theo IP & truy vấn IPAM"}, "purpose": {"ja": "同一IPへの同時書き込みを防止し、現在の登録状態を取得する", "en": "Prevent concurrent writes to the same IP and retrieve its current registration state", "vi": "Ngăn ghi đồng thời vào cùng 1 IP và lấy trạng thái đăng ký hiện tại"}, "description": {"ja": "IPアドレスをキーにしたnamed mutexを取得（Enter-IpEntryMutex）。取得できればGet-IpamAddressで既存登録を照会し、S12〜S14のいずれかの分岐へ進む。取得できなければそのentryをスキップ。", "en": "Acquires a named mutex keyed by IP address (Enter-IpEntryMutex). If acquired, queries the existing registration via Get-IpamAddress and proceeds to one of S12-S14. If not acquired, the entry is skipped.", "vi": "Lấy named mutex theo khóa là địa chỉ IP (Enter-IpEntryMutex). Nếu lấy được thì truy vấn đăng ký hiện có qua Get-IpamAddress và chuyển sang 1 trong S12-S14. Nếu không lấy được thì bỏ qua entry đó."}, "trigger": {"ja": "S10で固定範囲内と判定されたentryごと", "en": "For each entry classified as in-static-range at S10", "vi": "Cho mỗi entry được phân loại thuộc dải cố định ở S10"}, "preconditions": {"ja": "IpamWorkerCommon.psm1がロード済み（Enter-/Exit-IpEntryMutex）", "en": "IpamWorkerCommon.psm1 is loaded (Enter-/Exit-IpEntryMutex)", "vi": "IpamWorkerCommon.psm1 đã được load (Enter-/Exit-IpEntryMutex)"}, "input": {"ja": "entry.ip_address", "en": "entry.ip_address", "vi": "entry.ip_address"}, "validation": {"ja": "mutex取得タイムアウト判定", "en": "Mutex-acquisition timeout check", "vi": "Kiểm tra timeout khi lấy mutex"}, "processing": {"ja": "mutex取得失敗時はWorkerLogにWarning記録しcontinue。成功時はGet-IpamAddress -ErrorAction SilentlyContinueで照会（未登録ならnull）。", "en": "On mutex-acquisition failure, logs a Warning and continues. On success, queries via Get-IpamAddress -ErrorAction SilentlyContinue (null if unregistered).", "vi": "Khi lấy mutex thất bại, ghi Warning vào log và continue. Khi thành công, truy vấn qua Get-IpamAddress -ErrorAction SilentlyContinue (null nếu chưa đăng ký)."}, "business_rules": {"ja": "自動削除Workerや払い出しWorkerとのIPAM同時更新を防ぐため、entry単位（IP単位）のロック粒度とする（8.4）", "en": "Uses IP-level (per-entry) lock granularity to prevent concurrent IPAM updates from the auto-delete and allocation workers (8.4)", "vi": "Dùng độ chi tiết lock theo từng IP (per-entry) để tránh cập nhật IPAM đồng thời với Worker tự động xóa và Worker cấp phát (8.4)"}, "external_systems": {"ja": "IPAM（Windows Server, PowerShellモジュール経由）", "en": "IPAM (Windows Server, via PowerShell module)", "vi": "IPAM (Windows Server, qua module PowerShell)"}, "database_operation": {"ja": "SELECT相当（Get-IpamAddress）", "en": "SELECT-equivalent (Get-IpamAddress)", "vi": "Tương đương SELECT (Get-IpamAddress)"}, "output": {"ja": "$existingIpamEntry（存在すればオブジェクト、なければ$null）", "en": "$existingIpamEntry (an object if it exists, otherwise $null)", "vi": "$existingIpamEntry (là object nếu tồn tại, ngược lại là $null)"}, "postconditions": {"ja": "mutex確保済みの状態でS12（Cooldown含む）・S13・S14いずれかへ分岐", "en": "With the mutex held, branches to one of S12 (incl. Cooldown), S13, or S14", "vi": "Trong khi giữ mutex, rẽ nhánh sang 1 trong S12 (gồm Cooldown), S13, hoặc S14"}, "error_handling": {"ja": "mutex取得タイムアウトはWarningとして扱い処理継続（クラッシュさせない）", "en": "Mutex-acquisition timeout is treated as a Warning and processing continues (no crash)", "vi": "Timeout khi lấy mutex được xử lý như Warning và tiếp tục xử lý (không crash)"}, "retry_rollback": {"ja": "mutex取得失敗entryは当該サイクルでは再試行せず次サイクルへ委ねる", "en": "Entries that fail to acquire the mutex are not retried this cycle - deferred to the next", "vi": "Entry không lấy được mutex sẽ không retry trong chu kỳ này - để lại cho chu kỳ sau"}, "logging": {"ja": "Write-WorkerLog（Warning時）", "en": "Write-WorkerLog (on Warning)", "vi": "Write-WorkerLog (khi có Warning)"}, "monitoring": {"ja": "mutex競合の頻度は8.4の排他制御設計の実効性指標", "en": "Mutex-contention frequency is an indicator of how effective the 8.4 locking design is in practice", "vi": "Tần suất tranh chấp mutex là chỉ số cho biết thiết kế khóa loại trừ ở 8.4 hiệu quả đến đâu trong thực tế"}, "performance": {"ja": "entryごとに1回のGet-IpamAddress呼び出し", "en": "One Get-IpamAddress call per entry", "vi": "1 lần gọi Get-IpamAddress cho mỗi entry"}, "security": {"ja": "IPAM操作はPowerShell IpamServerモジュール経由のみ（direct DB access不可）", "en": "IPAM operations go only through the PowerShell IpamServer module (no direct DB access)", "vi": "Thao tác IPAM chỉ qua module IpamServer của PowerShell (không truy cập DB trực tiếp)"}, "notes": {"ja": "finally節でExit-IpEntryMutexを必ず呼び出し、例外時もmutexリークを防止", "en": "Exit-IpEntryMutex is always called in a finally block, preventing mutex leaks even on exceptions", "vi": "Exit-IpEntryMutex luôn được gọi trong khối finally, tránh rò rỉ mutex kể cả khi có exception"}}, {"id": "S12", "phase": "reflect", "name": {"ja": "Cooldown復帰処理", "en": "Cooldown Recovery", "vi": "Khôi phục từ Cooldown"}, "purpose": {"ja": "削除保留中（Cooldown）だったIPがARPで再検知された場合に正しい順序で復帰させる", "en": "Correctly restore an IP that was pending deletion (Cooldown) when ARP re-detects it", "vi": "Khôi phục đúng thứ tự một IP đang chờ xóa (Cooldown) khi ARP phát hiện lại"}, "description": {"ja": "既存IPAMエントリのSourceにCooldownが含まれる場合、(1)LastSeenAt更新→(2)Source=AutoDetectedへ設定→(3)CooldownStartedAtクリア→(4)RequestIdクリアの順で実行。MacAddressは操作しない。元SourceにRequestedを含んでいればnkis-networkへ復帰通知。", "en": "If the existing IPAM entry's Source contains Cooldown: (1) update LastSeenAt -> (2) set Source=AutoDetected -> (3) clear CooldownStartedAt -> (4) clear RequestId, in that exact order. MacAddress is not touched. If the original Source included Requested, notify nkis-network of the recovery.", "vi": "Nếu Source của entry IPAM hiện có chứa Cooldown thì thực hiện đúng thứ tự: (1) cập nhật LastSeenAt -> (2) đặt Source=AutoDetected -> (3) xóa CooldownStartedAt -> (4) xóa RequestId. Không thao tác MacAddress. Nếu Source gốc có chứa Requested thì thông báo khôi phục tới nkis-network."}, "trigger": {"ja": "$existingIpamEntry.Source に Cooldown を含む", "en": "$existingIpamEntry.Source contains Cooldown", "vi": "$existingIpamEntry.Source có chứa Cooldown"}, "preconditions": {"ja": "S11でmutex確保済み、$existingIpamEntryが存在", "en": "Mutex held from S11; $existingIpamEntry exists", "vi": "Đã giữ mutex từ S11; $existingIpamEntry tồn tại"}, "input": {"ja": "既存IPAMエントリ（Source, LastSeenAt等）、検知時刻（observed_at, JST変換済み）", "en": "Existing IPAM entry (Source, LastSeenAt, etc.); detection time (observed_at, converted to JST)", "vi": "Entry IPAM hiện có (Source, LastSeenAt, v.v.); thời điểm phát hiện (observed_at, đã chuyển sang JST)"}, "validation": {"ja": "元Source値にRequestedが含まれるかどうか（通知要否の判定）", "en": "Whether the original Source value included Requested (determines whether to notify)", "vi": "Source gốc có chứa Requested hay không (để quyết định có cần thông báo)"}, "processing": {"ja": "4ステップを個別のSet-IpamAddress呼び出しで順次実行（(1)が先に確定しているため、途中失敗時も7.4のCooldown期限判定は安全側に保たれる）", "en": "The 4 steps run as separate, sequential Set-IpamAddress calls (since step (1) is committed first, even a partial failure keeps the 7.4 Cooldown-expiry check on the safe side)", "vi": "4 bước chạy lần lượt qua các lệnh gọi Set-IpamAddress riêng biệt (do bước (1) được ghi trước, ngay cả khi thất bại giữa chừng, việc kiểm tra hết hạn Cooldown ở 7.4 vẫn an toàn)"}, "business_rules": {"ja": "DNSレコード・申請台帳（IPRequestItems）は自動復元しない。順序厳守（7.4復帰正典）。IsActive値・除外セグメント該当有無によらず実施（既存IPの保全）。", "en": "DNS records and the request ledger (IPRequestItems) are never auto-restored. Order must be strict (7.4 recovery canon). Performed regardless of IsActive or exclusion-segment status (preserving existing IPs).", "vi": "Không tự động khôi phục DNS record và sổ đăng ký (IPRequestItems). Phải tuân thủ đúng thứ tự (bản chuẩn khôi phục ở 7.4). Thực hiện bất kể IsActive hay việc thuộc segment loại trừ (bảo toàn IP hiện có)."}, "external_systems": {"ja": "IPAM、nkis-network（Requested由来の場合のみ）", "en": "IPAM; nkis-network (only when originally Requested)", "vi": "IPAM; nkis-network (chỉ khi nguồn gốc là Requested)"}, "database_operation": {"ja": "UPDATE ×4（Set-IpamAddress呼び出し4回、custom field経由）", "en": "UPDATE x4 (four Set-IpamAddress calls, via custom fields)", "vi": "UPDATE x4 (4 lần gọi Set-IpamAddress, qua custom field)"}, "output": {"ja": "Source=AutoDetectedへ更新されたIPAMエントリ、（該当時）復帰通知メール", "en": "IPAM entry updated to Source=AutoDetected; (when applicable) a recovery notification email", "vi": "Entry IPAM được cập nhật thành Source=AutoDetected; (nếu có) email thông báo khôi phục"}, "postconditions": {"ja": "MAC突合（S15）へ進む", "en": "Proceeds to MAC reconciliation (S15)", "vi": "Chuyển sang đối chiếu MAC (S15)"}, "error_handling": {"ja": "4呼び出しのいずれかが失敗すると例外送出、mutexはfinallyで解放されるが後続ステップは未実施のまま残る（次サイクルで再評価）", "en": "If any of the 4 calls fails, an exception is raised; the mutex is released in finally, but later steps remain undone (re-evaluated next cycle)", "vi": "Nếu 1 trong 4 lệnh gọi thất bại sẽ raise exception; mutex vẫn được giải phóng trong finally, nhưng các bước sau chưa thực hiện sẽ còn tồn đọng (đánh giá lại ở chu kỳ sau)"}, "retry_rollback": {"ja": "明示的ロールバックなし。LastSeenAtが最初に更新されるため、部分失敗でも7.4のCooldown期限判定は安全側（削除されない）。", "en": "No explicit rollback. Because LastSeenAt is updated first, even a partial failure keeps 7.4's Cooldown-expiry check safe (won't be deleted).", "vi": "Không rollback tường minh. Do LastSeenAt được cập nhật trước, ngay cả khi thất bại một phần thì việc kiểm tra hết hạn Cooldown ở 7.4 vẫn an toàn (không bị xóa)."}, "logging": {"ja": "Write-WorkerLog、Send-InternalAlert呼び出し時のログ", "en": "Write-WorkerLog; logging around Send-InternalAlert calls", "vi": "Write-WorkerLog; log quanh các lần gọi Send-InternalAlert"}, "monitoring": {"ja": "復帰通知（付録F-14）の発生頻度は運用上の異常検知シグナルになり得る", "en": "The frequency of recovery notifications (Appendix F-14) can itself serve as an operational anomaly signal", "vi": "Tần suất thông báo khôi phục (Phụ lục F-14) có thể là tín hiệu phát hiện bất thường trong vận hành"}, "performance": {"ja": "entryごとに4回のIPAM書き込み（Cooldown分岐のみ、他分岐より重い）", "en": "4 IPAM writes per entry (only for the Cooldown branch - heavier than the other branches)", "vi": "4 lần ghi IPAM cho mỗi entry (chỉ ở nhánh Cooldown - nặng hơn các nhánh khác)"}, "security": {"ja": "IPAM書き込み権限（PowerShell実行アカウント）", "en": "Requires IPAM write permission (PowerShell execution account)", "vi": "Cần quyền ghi IPAM (tài khoản thực thi PowerShell)"}, "notes": {"ja": "MacAddressはこの分岐では一切操作しない（S15の既存MACルールに委ねる）", "en": "MacAddress is never touched in this branch (deferred to S15's existing MAC rules)", "vi": "MacAddress hoàn toàn không bị thao tác ở nhánh này (giao lại cho quy tắc MAC hiện có ở S15)"}}, {"id": "S13", "phase": "reflect", "name": {"ja": "LastSeenAt更新処理", "en": "LastSeenAt Update", "vi": "Cập nhật LastSeenAt"}, "purpose": {"ja": "既存登録IPの生存確認時刻を更新する（過度な書き込みは抑制）", "en": "Update the liveness timestamp of an already-registered IP (without excessive writes)", "vi": "Cập nhật thời điểm xác nhận còn sống của IP đã đăng ký (tránh ghi quá nhiều)"}, "description": {"ja": "既存IPAMエントリがありCooldownを含まない場合、前回LastSeenAtから24時間以上経過していればLastSeenAtのみ更新する。IsActiveは条件に含めない。", "en": "If an existing IPAM entry has no Cooldown, LastSeenAt is updated only when at least 24h have elapsed since its previous value. IsActive is not part of the condition.", "vi": "Nếu entry IPAM hiện có không chứa Cooldown, chỉ cập nhật LastSeenAt khi đã qua ít nhất 24 giờ kể từ giá trị trước đó. IsActive không nằm trong điều kiện."}, "trigger": {"ja": "$existingIpamEntry存在 かつ Source に Cooldown を含まない", "en": "$existingIpamEntry exists and Source does not contain Cooldown", "vi": "$existingIpamEntry tồn tại và Source không chứa Cooldown"}, "preconditions": {"ja": "S11でmutex確保済み", "en": "Mutex held from S11", "vi": "Đã giữ mutex từ S11"}, "input": {"ja": "existingIpamEntry.LastSeenAt、observed_at（JST変換済み）", "en": "existingIpamEntry.LastSeenAt; observed_at (converted to JST)", "vi": "existingIpamEntry.LastSeenAt; observed_at (đã chuyển sang JST)"}, "validation": {"ja": "(observedAtJst − 既存LastSeenAt) >= 24時間", "en": "(observedAtJst - existing LastSeenAt) >= 24 hours", "vi": "(observedAtJst - LastSeenAt hiện có) >= 24 giờ"}, "processing": {"ja": "24時間未経過ならスキップ（書き込みなし）。経過していればSet-IpamAddressでLastSeenAtのみ更新。", "en": "If under 24h, skip (no write). If elapsed, update only LastSeenAt via Set-IpamAddress.", "vi": "Nếu chưa đủ 24 giờ thì bỏ qua (không ghi). Nếu đã đủ thì chỉ cập nhật LastSeenAt qua Set-IpamAddress."}, "business_rules": {"ja": "v1.2規定を維持（IsActiveを条件に含めない、既存IPの保全を優先）", "en": "Maintains the v1.2 rule (IsActive is not a condition - prioritizes preserving existing IPs)", "vi": "Giữ nguyên quy định v1.2 (không đưa IsActive vào điều kiện - ưu tiên bảo toàn IP hiện có)"}, "external_systems": {"ja": "IPAM", "en": "IPAM", "vi": "IPAM"}, "database_operation": {"ja": "UPDATE（条件付き、1回または0回）", "en": "UPDATE (conditional - zero or one write)", "vi": "UPDATE (có điều kiện - ghi 0 hoặc 1 lần)"}, "output": {"ja": "更新（または未更新）のIPAMエントリ", "en": "Updated (or unchanged) IPAM entry", "vi": "Entry IPAM đã cập nhật (hoặc không thay đổi)"}, "postconditions": {"ja": "MAC突合（S15）へ進む", "en": "Proceeds to MAC reconciliation (S15)", "vi": "Chuyển sang đối chiếu MAC (S15)"}, "error_handling": {"ja": "Set-IpamAddress失敗時は例外送出、mutexはfinallyで解放", "en": "On Set-IpamAddress failure, an exception is raised; the mutex is released in finally", "vi": "Khi Set-IpamAddress thất bại sẽ raise exception; mutex vẫn được giải phóng trong finally"}, "retry_rollback": {"ja": "なし（次回ARP検知時に再評価されるため実質的に自己修復）", "en": "None (effectively self-healing, since the next ARP detection re-evaluates it)", "vi": "Không có (về bản chất tự phục hồi, vì lần ARP phát hiện tiếp theo sẽ đánh giá lại)"}, "logging": {"ja": "Write-WorkerLog（更新時のみ、抑制済みは無音）", "en": "Write-WorkerLog (only on actual update; throttled cases are silent)", "vi": "Write-WorkerLog (chỉ khi thực sự cập nhật; trường hợp bị throttle thì không ghi log)"}, "monitoring": {"ja": "24時間スロットリングによりIPAM書き込み量を抑制（負荷対策）", "en": "The 24h throttle limits IPAM write volume (a load-control measure)", "vi": "Việc throttle 24 giờ giúp hạn chế khối lượng ghi vào IPAM (biện pháp giảm tải)"}, "performance": {"ja": "entryあたり0〜1回のIPAM書き込み", "en": "0-1 IPAM writes per entry", "vi": "0-1 lần ghi IPAM cho mỗi entry"}, "security": {"ja": "IPAM書き込み権限", "en": "Requires IPAM write permission", "vi": "Cần quyền ghi IPAM"}, "notes": {"ja": "最も高頻度に通る分岐（定常状態でのARP再検知の大半はこの経路）", "en": "The most frequently taken branch (most steady-state ARP re-detections follow this path)", "vi": "Nhánh được đi qua nhiều nhất (phần lớn các lần ARP phát hiện lại ở trạng thái ổn định đi theo đường này)"}}, {"id": "S14", "phase": "reflect", "name": {"ja": "新規登録処理", "en": "New Registration", "vi": "Đăng ký mới"}, "purpose": {"ja": "未登録IPを新規にIPAMへ自動登録する", "en": "Automatically register a previously unrecorded IP into IPAM", "vi": "Tự động đăng ký một IP chưa từng ghi nhận vào IPAM"}, "description": {"ja": "IPAMに未登録のIPは、所属セグメントがIsActive=falseまたはRangeChangePending=trueでない限りAdd-IpamAddress（Source=AutoDetected）で新規登録する。該当する場合は登録を保留し次サイクルで再評価する。", "en": "An IP not yet in IPAM is registered via Add-IpamAddress (Source=AutoDetected), unless its segment has IsActive=false or RangeChangePending=true - in which case registration is deferred and re-evaluated next cycle.", "vi": "IP chưa có trong IPAM sẽ được đăng ký qua Add-IpamAddress (Source=AutoDetected), trừ khi segment của nó có IsActive=false hoặc RangeChangePending=true - trường hợp đó việc đăng ký sẽ bị giữ lại và đánh giá lại ở chu kỳ sau."}, "trigger": {"ja": "$existingIpamEntryが$null（未登録）", "en": "$existingIpamEntry is $null (unregistered)", "vi": "$existingIpamEntry là $null (chưa đăng ký)"}, "preconditions": {"ja": "S11でmutex確保済み、S10でsegment判定済み", "en": "Mutex held from S11; segment already determined at S10", "vi": "Đã giữ mutex từ S11; đã xác định segment ở S10"}, "input": {"ja": "segment.IsActive, segment.RangeChangePending, entry.ip_address/mac_address, observed_at", "en": "segment.IsActive, segment.RangeChangePending, entry.ip_address/mac_address, observed_at", "vi": "segment.IsActive, segment.RangeChangePending, entry.ip_address/mac_address, observed_at"}, "validation": {"ja": "IsActive=false または RangeChangePending=true か", "en": "Whether IsActive=false or RangeChangePending=true", "vi": "IsActive=false hoặc RangeChangePending=true hay không"}, "processing": {"ja": "条件に該当すればWorkerLogに情報記録しcontinue（登録保留）。該当しなければAdd-IpamAddress -CustomField @{Source='AutoDetected'; LastSeenAt=...}を実行しcontinue（既にMAC設定済みのためMAC突合は不要）。", "en": "If the condition holds, logs information and continues (registration deferred). Otherwise, runs Add-IpamAddress -CustomField @{Source='AutoDetected'; LastSeenAt=...} and continues (no MAC reconciliation needed - the MAC is already set at creation).", "vi": "Nếu điều kiện đúng thì ghi log thông tin và continue (giữ đăng ký lại). Nếu không thì chạy Add-IpamAddress -CustomField @{Source='AutoDetected'; LastSeenAt=...} và continue (không cần đối chiếu MAC - MAC đã được thiết lập ngay khi tạo)."}, "business_rules": {"ja": "IsActive=falseによる抑止は3.1の対象外規定と整合（登録＝除外／更新＝非依存の非対称は意図的設計）。RangeChangePending=trueによる保留は範囲変更反映中の不整合防止のため（v1.4新設）。", "en": "The IsActive=false block aligns with the 3.1 exclusion rule (the asymmetry - block registration, but not updates - is an intentional design). The RangeChangePending=true deferral prevents inconsistency while a range change is being propagated (new in v1.4).", "vi": "Việc chặn khi IsActive=false phù hợp với quy định loại trừ ở 3.1 (tính bất đối xứng - chặn đăng ký nhưng không chặn cập nhật - là thiết kế có chủ ý). Việc giữ lại khi RangeChangePending=true nhằm tránh không nhất quán trong lúc thay đổi phạm vi đang được phản ánh (mới ở v1.4)."}, "external_systems": {"ja": "IPAM", "en": "IPAM", "vi": "IPAM"}, "database_operation": {"ja": "INSERT相当（Add-IpamAddress）または操作なし（保留時）", "en": "INSERT-equivalent (Add-IpamAddress) or no operation (when deferred)", "vi": "Tương đương INSERT (Add-IpamAddress) hoặc không thao tác gì (khi bị giữ lại)"}, "output": {"ja": "新規IPAMエントリ（Source=AutoDetected）または保留ログのみ", "en": "A new IPAM entry (Source=AutoDetected), or just a deferral log", "vi": "Entry IPAM mới (Source=AutoDetected), hoặc chỉ có log giữ lại"}, "postconditions": {"ja": "登録時・保留時いずれもS16（終了処理）へ直行（S15のMAC突合はスキップ）", "en": "Both registration and deferral proceed directly to S16 (finalization), skipping S15's MAC reconciliation", "vi": "Cả trường hợp đăng ký và giữ lại đều chuyển thẳng sang S16 (kết thúc), bỏ qua bước đối chiếu MAC ở S15"}, "error_handling": {"ja": "Add-IpamAddress失敗時は例外送出、mutexはfinallyで解放", "en": "On Add-IpamAddress failure, an exception is raised; the mutex is released in finally", "vi": "Khi Add-IpamAddress thất bại sẽ raise exception; mutex vẫn được giải phóng trong finally"}, "retry_rollback": {"ja": "保留entryは次サイクル（最大1サイクル強の遅延）で再評価。明示的ロールバックなし。", "en": "Deferred entries are re-evaluated next cycle (delay of just over 1 cycle at most). No explicit rollback.", "vi": "Entry bị giữ lại sẽ được đánh giá lại ở chu kỳ sau (độ trễ tối đa hơn 1 chu kỳ). Không rollback tường minh."}, "logging": {"ja": "Write-WorkerLog（登録時・保留時いずれもInformationレベル）", "en": "Write-WorkerLog (Information level for both registration and deferral)", "vi": "Write-WorkerLog (mức Information cho cả trường hợp đăng ký và giữ lại)"}, "monitoring": {"ja": "新規AutoDetected登録件数は「未知の固定IP使用」の検知指標となる", "en": "The count of new AutoDetected registrations is a signal for detecting \"unknown static-IP usage\"", "vi": "Số lượng đăng ký AutoDetected mới là chỉ số phát hiện \"sử dụng IP cố định không rõ nguồn\""}, "performance": {"ja": "entryごとに0〜1回のIPAM書き込み", "en": "0-1 IPAM writes per entry", "vi": "0-1 lần ghi IPAM cho mỗi entry"}, "security": {"ja": "IPAM書き込み権限", "en": "Requires IPAM write permission", "vi": "Cần quyền ghi IPAM"}, "notes": {"ja": "新規登録IPはSourceにRequestedを含まないため、以降の自動削除は30日基準（AutoDetected既定値）が適用される（7.4）", "en": "Since a newly registered IP's Source never includes Requested, its later auto-deletion follows the 30-day AutoDetected default (7.4)", "vi": "Vì Source của IP mới đăng ký không chứa Requested, việc tự động xóa sau này sẽ áp dụng ngưỡng mặc định 30 ngày của AutoDetected (7.4)"}}, {"id": "S15", "phase": "reflect", "name": {"ja": "MAC突合", "en": "MAC Reconciliation", "vi": "Đối chiếu MAC"}, "purpose": {"ja": "既存登録IPのMACアドレス情報を検出結果と整合させ、異常を検知する", "en": "Reconcile an existing registered IP's MAC address with the detection result and flag anomalies", "vi": "Đối chiếu địa chỉ MAC của IP đã đăng ký với kết quả phát hiện và phát hiện bất thường"}, "description": {"ja": "S12（Cooldown復帰）またはS13（LastSeenAt更新）を経たentryに対して実施。MAC未設定なら初回のみ紐付け。既存と異なるMACを検出した場合は最新タイムスタンプ優先で上書きし、Source=Requestedであればnkis-networkへ競合疑い通知（AutoDetectedは通知しない）。", "en": "Runs for entries that went through S12 (Cooldown recovery) or S13 (LastSeenAt update). If no MAC is set, binds it (first time only). If a different MAC is detected, overwrites it (latest timestamp wins) and, if Source=Requested, notifies nkis-network of a suspected conflict (no notification for AutoDetected).", "vi": "Chạy cho các entry đã đi qua S12 (khôi phục Cooldown) hoặc S13 (cập nhật LastSeenAt). Nếu chưa thiết lập MAC thì gán (chỉ lần đầu). Nếu phát hiện MAC khác thì ghi đè (ưu tiên timestamp mới nhất) và nếu Source=Requested thì thông báo nghi ngờ xung đột tới nkis-network (không thông báo với AutoDetected)."}, "trigger": {"ja": "S12またはS13の完了直後（S14の新規登録entryは対象外）", "en": "Immediately after S12 or S13 completes (S14's newly registered entries are excluded)", "vi": "Ngay sau khi S12 hoặc S13 hoàn tất (entry mới đăng ký ở S14 không thuộc đối tượng)"}, "preconditions": {"ja": "S11でmutex確保済み、$existingIpamEntryが存在", "en": "Mutex held from S11; $existingIpamEntry exists", "vi": "Đã giữ mutex từ S11; $existingIpamEntry tồn tại"}, "input": {"ja": "existingIpamEntry.MacAddress, entry.mac_address, existingIpamEntry.Source", "en": "existingIpamEntry.MacAddress, entry.mac_address, existingIpamEntry.Source", "vi": "existingIpamEntry.MacAddress, entry.mac_address, existingIpamEntry.Source"}, "validation": {"ja": "MacAddress未設定か／既存と異なるMACか", "en": "Whether MacAddress is unset / whether the detected MAC differs from the existing one", "vi": "MacAddress chưa được thiết lập / MAC phát hiện có khác với MAC hiện có không"}, "processing": {"ja": "未設定→Set-IpamAddressでMAC紐付け。異なる→Set-IpamAddressで上書き、Source=Requestedを含めばSend-InternalAlert（付録F-13）。同一→操作なし。", "en": "Unset -> bind via Set-IpamAddress. Different -> overwrite via Set-IpamAddress; if Source includes Requested, call Send-InternalAlert (Appendix F-13). Same -> no action.", "vi": "Chưa thiết lập -> gán qua Set-IpamAddress. Khác -> ghi đè qua Set-IpamAddress; nếu Source có Requested thì gọi Send-InternalAlert (Phụ lục F-13). Giống nhau -> không thao tác."}, "business_rules": {"ja": "「IP重複100%検知」の適用範囲は登録・払い出し時に限定（7.3/8.4/付録B）。AutoDetected由来のMAC変化は通知しない（正常なDHCP再割当等との誤検知を避ける設計）。", "en": "\"100% IP-duplicate detection\" applies only at registration/allocation time (7.3/8.4/Appendix B). MAC changes on AutoDetected entries are never notified (a deliberate design to avoid false positives from routine reassignment, etc.).", "vi": "\"Phát hiện trùng IP 100%\" chỉ áp dụng khi đăng ký/cấp phát (7.3/8.4/Phụ lục B). Thay đổi MAC trên entry AutoDetected không bao giờ thông báo (thiết kế có chủ ý để tránh báo động giả từ việc gán lại DHCP thông thường, v.v.)."}, "external_systems": {"ja": "IPAM、nkis-network（Requested競合時のみ）", "en": "IPAM; nkis-network (only on a Requested conflict)", "vi": "IPAM; nkis-network (chỉ khi xung đột trên entry Requested)"}, "database_operation": {"ja": "UPDATE（MacAddressのみ、0または1回）", "en": "UPDATE (MacAddress only, zero or one write)", "vi": "UPDATE (chỉ MacAddress, ghi 0 hoặc 1 lần)"}, "output": {"ja": "更新済みMacAddress、（該当時）競合疑い通知メール", "en": "Updated MacAddress; (when applicable) a suspected-conflict notification email", "vi": "MacAddress đã cập nhật; (nếu có) email thông báo nghi ngờ xung đột"}, "postconditions": {"ja": "S16（終了処理）へ進む", "en": "Proceeds to S16 (finalization)", "vi": "Chuyển sang S16 (kết thúc)"}, "error_handling": {"ja": "Set-IpamAddress/Send-InternalAlert失敗時は例外送出、mutexはfinallyで解放", "en": "On Set-IpamAddress/Send-InternalAlert failure, an exception is raised; the mutex is released in finally", "vi": "Khi Set-IpamAddress/Send-InternalAlert thất bại sẽ raise exception; mutex vẫn được giải phóng trong finally"}, "retry_rollback": {"ja": "通知メール送信失敗はログのみ、自動再送なし", "en": "Notification email failures are only logged, with no automatic resend", "vi": "Gửi email thông báo thất bại chỉ ghi log, không tự động gửi lại"}, "logging": {"ja": "Write-WorkerLog、Send-InternalAlert呼び出しログ", "en": "Write-WorkerLog; logging around Send-InternalAlert calls", "vi": "Write-WorkerLog; log quanh các lần gọi Send-InternalAlert"}, "monitoring": {"ja": "競合疑い通知（付録F-13）の頻度はセキュリティ上の注視指標", "en": "The frequency of suspected-conflict notifications (Appendix F-13) is a security-monitoring signal", "vi": "Tần suất thông báo nghi ngờ xung đột (Phụ lục F-13) là chỉ số cần theo dõi về bảo mật"}, "performance": {"ja": "entryあたり0〜1回のIPAM書き込み+0〜1回のメール送信", "en": "0-1 IPAM writes + 0-1 email sends per entry", "vi": "0-1 lần ghi IPAM + 0-1 lần gửi email cho mỗi entry"}, "security": {"ja": "IPAM書き込み権限、SMTP社内リレー経由", "en": "Requires IPAM write permission; SMTP via the internal relay", "vi": "Cần quyền ghi IPAM; gửi SMTP qua relay nội bộ"}, "notes": {"ja": "MAC突合はS12/S13経由のentryのみに適用され、S14（新規登録）は対象外（continueで既にスキップ済み）", "en": "MAC reconciliation applies only to entries from S12/S13 - S14 (new registration) is excluded (already skipped via continue)", "vi": "Đối chiếu MAC chỉ áp dụng cho entry đến từ S12/S13 - S14 (đăng ký mới) không thuộc đối tượng (đã bị bỏ qua bằng continue)"}}, {"id": "S16", "phase": "final", "name": {"ja": "終了処理（イベントログ・ロック解放）", "en": "Finalize (Event Log & Lock Release)", "vi": "Kết thúc (Event Log & giải phóng lock)"}, "purpose": {"ja": "サイクルの実行結果を記録し、次サイクルに向けてロックを解放する", "en": "Record the cycle's execution outcome and release the lock for the next cycle", "vi": "Ghi nhận kết quả thực thi của chu kỳ và giải phóng lock cho chu kỳ sau"}, "description": {"ja": "全entry処理完了後、Windowsイベントログのカスタムログ「IPAM-Worker」へ成功/部分失敗/全失敗を記録（1001/1002/1003）。続けてExit-WorkerLockでArpCollectionJob.lockを削除し、サイクルを終了する。", "en": "After all entries are processed, records success/partial-failure/total-failure to the \"IPAM-Worker\" custom Windows Event Log (1001/1002/1003). Then Exit-WorkerLock removes ArpCollectionJob.lock, ending the cycle.", "vi": "Sau khi xử lý xong tất cả entry, ghi thành công/thất bại một phần/thất bại toàn bộ vào custom Windows Event Log \"IPAM-Worker\" (1001/1002/1003). Sau đó Exit-WorkerLock xóa ArpCollectionJob.lock, kết thúc chu kỳ."}, "trigger": {"ja": "全IPエントリのS11〜S15処理完了後", "en": "After S11-S15 complete for all IP entries", "vi": "Sau khi S11-S15 hoàn tất cho tất cả entry IP"}, "preconditions": {"ja": "processedCount集計済み", "en": "processedCount has been tallied", "vi": "processedCount đã được tổng hợp"}, "input": {"ja": "processedCount, arpEntries.Count、ロックファイルパス", "en": "processedCount, arpEntries.Count, lock file path", "vi": "processedCount, arpEntries.Count, đường dẫn file lock"}, "validation": {"ja": "なし", "en": "None", "vi": "Không có"}, "processing": {"ja": "Write-WorkerLog（イベントID 1301でサマリ）。Exit-WorkerLock -LockPathでロックファイル削除（PID所有者チェックなし、Python作成分も削除可能）。", "en": "Write-WorkerLog logs the summary under event ID 1301. Exit-WorkerLock -LockPath removes the lock file (no owning-PID check, so it can remove the lock even if Python created it).", "vi": "Write-WorkerLog ghi tổng kết dưới event ID 1301. Exit-WorkerLock -LockPath xóa file lock (không kiểm tra PID sở hữu, nên xóa được cả lock do Python tạo)."}, "business_rules": {"ja": "ロックは2フェーズ共通、PowerShell側（最終フェーズ）が解放責務を持つ（アーキテクチャ上の決定、worker_lock.py内QA記録あり）", "en": "The lock is shared across both phases; the PowerShell side (the final phase) owns the release responsibility (an architectural decision, documented as a QA note in worker_lock.py)", "vi": "Lock dùng chung cho cả 2 giai đoạn; phía PowerShell (giai đoạn cuối) chịu trách nhiệm giải phóng (quyết định kiến trúc, đã ghi chú QA trong worker_lock.py)"}, "external_systems": {"ja": "Windows Event Log", "en": "Windows Event Log", "vi": "Windows Event Log"}, "database_operation": {"ja": "なし", "en": "None", "vi": "Không có"}, "output": {"ja": "イベントログエントリ（1001/1002/1003）、削除済みロックファイル", "en": "Event Log entry (1001/1002/1003); removed lock file", "vi": "Bản ghi Event Log (1001/1002/1003); file lock đã bị xóa"}, "postconditions": {"ja": "サイクル終了。次回起動（S01、1時間後）まで待機状態。", "en": "Cycle ends. Waits until the next trigger (S01, 1 hour later).", "vi": "Chu kỳ kết thúc. Chờ đến lần kích hoạt sau (S01, 1 giờ sau)."}, "error_handling": {"ja": "Exit-WorkerLock自体の失敗は考慮薄（ファイルパス指定のRemove-Itemのため通常失敗しない）", "en": "Failure of Exit-WorkerLock itself is not heavily handled (a path-based Remove-Item rarely fails)", "vi": "Việc Exit-WorkerLock tự thất bại ít được xử lý kỹ (Remove-Item theo đường dẫn hiếm khi thất bại)"}, "retry_rollback": {"ja": "なし", "en": "None", "vi": "Không có"}, "logging": {"ja": "Windowsイベントログ「IPAM-Worker」＋Write-WorkerLog", "en": "Windows Event Log \"IPAM-Worker\" + Write-WorkerLog", "vi": "Windows Event Log \"IPAM-Worker\" + Write-WorkerLog"}, "monitoring": {"ja": "1002/1003イベントの発生は運用アラート対象、Azure Monitorハートビートと合わせて確認（10.4）", "en": "Occurrences of 1002/1003 events warrant an operational alert, checked alongside the Azure Monitor heartbeat (10.4)", "vi": "Sự kiện 1002/1003 xuất hiện cần được cảnh báo vận hành, kiểm tra cùng với heartbeat Azure Monitor (10.4)"}, "performance": {"ja": "サイクル全体（S01〜S16）は1時間周期に収まる必要がある", "en": "The entire cycle (S01-S16) must complete within the 1-hour interval", "vi": "Toàn bộ chu kỳ (S01-S16) phải hoàn tất trong vòng 1 giờ"}, "security": {"ja": "イベントログ書き込み権限（ローカルシステム）", "en": "Requires local Event Log write permission", "vi": "Cần quyền ghi Event Log cục bộ"}, "notes": {"ja": "ロック未解放のまま異常終了した場合、次サイクルは1時間の失効待ちとなる（S03参照）", "en": "If the process ends abnormally without releasing the lock, the next cycle waits out the 1-hour expiry (see S03)", "vi": "Nếu kết thúc bất thường mà không giải phóng lock, chu kỳ sau sẽ phải chờ hết hạn 1 giờ (xem S03)"}}]</script>
+
+<script>
+(function () {
+  var STORAGE_KEY = "arpFlow73Lang";
+  var LANGS = ["ja", "en", "vi"];
+  var currentLang = "ja";
+
+  var FIELD_ORDER = ["purpose","description","trigger","preconditions","input","validation",
+    "processing","business_rules","external_systems","database_operation","output",
+    "postconditions","error_handling","retry_rollback","logging","monitoring",
+    "performance","security","notes"];
+
+  var FIELD_LABELS = {
+    purpose:            { ja: "目的", en: "Purpose", vi: "Mục đích" },
+    description:        { ja: "説明", en: "Description", vi: "Mô tả" },
+    trigger:            { ja: "トリガー", en: "Trigger", vi: "Điều kiện kích hoạt" },
+    preconditions:      { ja: "事前条件", en: "Preconditions", vi: "Điều kiện trước khi chạy" },
+    input:              { ja: "入力", en: "Input", vi: "Dữ liệu đầu vào" },
+    validation:         { ja: "検証", en: "Validation", vi: "Kiểm tra / Validation" },
+    processing:         { ja: "処理内容", en: "Processing", vi: "Logic xử lý" },
+    business_rules:     { ja: "業務ルール", en: "Business Rules", vi: "Quy tắc nghiệp vụ" },
+    external_systems:   { ja: "関連システム", en: "External Systems", vi: "Hệ thống liên quan" },
+    database_operation: { ja: "DB操作", en: "Database Operation", vi: "Thao tác DB" },
+    output:             { ja: "出力", en: "Output", vi: "Dữ liệu đầu ra" },
+    postconditions:     { ja: "事後条件", en: "Postconditions", vi: "Trạng thái sau khi hoàn thành" },
+    error_handling:     { ja: "エラー処理", en: "Error Handling", vi: "Xử lý lỗi" },
+    retry_rollback:     { ja: "リトライ／ロールバック", en: "Retry / Rollback", vi: "Retry / Rollback" },
+    logging:            { ja: "ログ", en: "Logging", vi: "Logging" },
+    monitoring:         { ja: "監視", en: "Monitoring", vi: "Monitoring" },
+    performance:        { ja: "性能・SLA", en: "Performance", vi: "Performance / SLA" },
+    security:           { ja: "セキュリティ", en: "Security", vi: "Bảo mật" },
+    notes:              { ja: "備考", en: "Notes", vi: "Ghi chú" }
+  };
+
+  var PHASE_CLASS = { trigger: "p-trigger", python: "p-python", reflect: "p-reflect", final: "p-final" };
+
+  var EXPAND_LABEL = { ja: "すべて展開", en: "Expand all", vi: "Mở rộng tất cả" };
+  var COLLAPSE_LABEL = { ja: "すべて折りたたむ", en: "Collapse all", vi: "Thu gọn tất cả" };
+
+  var STEPS = JSON.parse(document.getElementById("steps-data").textContent);
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function renderSteps(lang) {
+    var list = document.getElementById("step-list");
+    var openIds = {};
+    list.querySelectorAll("details.step-card[open]").forEach(function (d) { openIds[d.dataset.stepId] = true; });
+    var firstRender = list.children.length === 0;
+
+    var html = STEPS.map(function (step) {
+      var cls = PHASE_CLASS[step.phase] || "p-trigger";
+      var isOpen = firstRender ? step.id === "S01" : !!openIds[step.id];
+      var fieldsHtml = FIELD_ORDER.map(function (f) {
+        var label = FIELD_LABELS[f][lang];
+        var value = step[f][lang];
+        return '<div class="step-field-row">' +
+                 '<div class="flabel">' + escapeHtml(label) + '</div>' +
+                 '<div class="fvalue">' + escapeHtml(value) + '</div>' +
+               '</div>';
+      }).join("");
+      return '<details class="step-card ' + cls + '" data-step-id="' + step.id + '"' + (isOpen ? " open" : "") + '>' +
+               '<summary>' +
+                 '<span class="id">' + step.id + '</span>' +
+                 '<span class="sname">' + escapeHtml(step.name[lang]) + '</span>' +
+                 '<span class="spurpose">' + escapeHtml(step.purpose[lang]) + '</span>' +
+                 '<span class="chev">&#9656;</span>' +
+               '</summary>' +
+               '<div class="step-fields">' + fieldsHtml + '</div>' +
+             '</details>';
+    }).join("");
+
+    list.innerHTML = html;
+  }
+
+  function updateExpandButton() {
+    var btn = document.getElementById("expand-all-btn");
+    var list = document.getElementById("step-list");
+    var allOpen = list.querySelectorAll("details.step-card").length > 0 &&
+                  list.querySelectorAll("details.step-card:not([open])").length === 0;
+    btn.textContent = allOpen ? COLLAPSE_LABEL[currentLang] : EXPAND_LABEL[currentLang];
+    btn.dataset.mode = allOpen ? "collapse" : "expand";
+  }
+
+  document.getElementById("expand-all-btn").addEventListener("click", function () {
+    var list = document.getElementById("step-list");
+    var expand = document.getElementById("expand-all-btn").dataset.mode !== "collapse";
+    list.querySelectorAll("details.step-card").forEach(function (d) { d.open = expand; });
+    updateExpandButton();
+  });
+
+  document.getElementById("step-list").addEventListener("toggle", function () { updateExpandButton(); }, true);
+
+  function getSavedLang() {
+    try { return localStorage.getItem(STORAGE_KEY); } catch (e) { return null; }
+  }
+  function saveLang(lang) {
+    try { localStorage.setItem(STORAGE_KEY, lang); } catch (e) { /* sandboxed, ignore */ }
+  }
+
+  function applyLang(lang) {
+    if (LANGS.indexOf(lang) === -1) { lang = "ja"; }
+    currentLang = lang;
+    document.documentElement.setAttribute("lang", lang);
+    document.querySelectorAll("[data-lang]").forEach(function (el) {
+      el.hidden = el.getAttribute("data-lang") !== lang;
+    });
+    document.querySelectorAll(".lang-btn").forEach(function (btn) {
+      btn.setAttribute("aria-pressed", String(btn.getAttribute("data-lang-btn") === lang));
+    });
+    var drawioBtn = document.getElementById("drawio-btn");
+    drawioBtn.href = drawioBtn.getAttribute("data-href-" + lang);
+    renderSteps(lang);
+    updateExpandButton();
+    saveLang(lang);
+  }
+
+  document.querySelectorAll(".lang-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () { applyLang(btn.getAttribute("data-lang-btn")); });
+  });
+
+  var saved = getSavedLang();
+  applyLang(LANGS.indexOf(saved) !== -1 ? saved : "ja");
+})();
+</script>
