@@ -6,7 +6,7 @@
 
 .NOTES
     Bắt buộc mỗi dòng phải có DeviceType hợp lệ (CiscoIOS/FortiGate/YamahaRTX/MerakiMX) và,
-    với thiết bị Meraki, MerakiNetworkId — thiếu 1 trong 2 sẽ khiến arp-collector SKIP thiết bị
+    với thiết bị Meraki, MerakiNetworkId — thiếu 1 trong 2 sẽ khiến arp-worker SKIP thiết bị
     đó ngay từ chu kỳ đầu tiên (7.3/10.6).
 #>
 
@@ -45,4 +45,4 @@ foreach ($row in $rows) {
     # }
 }
 
-Write-Host "Xong ($($rows.Count) thiết bị). Nhắc: xác nhận SNMP reachability/ACL đã sẵn sàng cho từng thiết bị (Phụ lục C.6) trước khi bật arp-collector lần đầu."
+Write-Host "Xong ($($rows.Count) thiết bị). Nhắc: xác nhận SNMP reachability/ACL đã sẵn sàng cho từng thiết bị (Phụ lục C.6) trước khi bật arp-worker lần đầu."

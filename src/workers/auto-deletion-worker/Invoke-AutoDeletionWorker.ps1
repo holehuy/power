@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     RỦI RO CAO NHẤT trong toàn hệ thống (có thể xóa nhầm IP đang dùng) — build/test SAU CÙNG,
-    sau khi segment-sync-worker và arp-collector đã chạy ổn định và có dữ liệu LastSeenAt/SkippedDays thật.
+    sau khi segment-sync-worker và arp-worker đã chạy ổn định và có dữ liệu LastSeenAt/SkippedDays thật.
 
     Thứ tự bắt buộc theo 7.4:
       1. Snapshot Segments + ArpDeviceStatus tại thời điểm BẮT ĐẦU quét (dùng snapshot này xuyên suốt
@@ -22,13 +22,14 @@
 param()
 
 $ErrorActionPreference = 'Stop'
-Import-Module "$PSScriptRoot\..\common\IpamWorkerCommon.psm1" -Force
-Import-Module "$PSScriptRoot\..\common\SharePointClient.psm1" -Force
-Import-Module "$PSScriptRoot\..\common\NotificationClient.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\common\Common.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\common\SharePointClient.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\common\NotificationClient.psm1" -Force
+Set-CurrentWorkerId -WorkerId 'DEL'
 
 $lockPath = Enter-WorkerLock -WorkerName 'AutoDeletionWorker'
 try {
-    Write-WorkerLog -Message 'AutoDeletionWorker bắt đầu chu kỳ.' -EventId 1401
+    Write-InfoLog -Code 'INFO-DEL-0001'
 
     # --- Bước 1: snapshot đầu ca quét (7.4 — mọi tham chiếu Segments trong file này dùng snapshot này) ---
     $segmentsSnapshot = Get-SharePointListItems -ListName 'Segments'
@@ -98,7 +99,7 @@ try {
         # và số ngày skip liên tục (SkippedDays cho 2 lý do đầu).
     }
 
-    Write-WorkerLog -Message 'AutoDeletionWorker kết thúc chu kỳ.' -EventId 1402
+    Write-InfoLog -Code 'INFO-DEL-0002'
 }
 finally {
     Exit-WorkerLock -LockPath $lockPath

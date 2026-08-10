@@ -1,0 +1,3 @@
+Subject: [IPAM-Worker] Khôi phục IP {{IpAddress}} từ Cooldown (Phụ lục F#14)
+---
+IP {{IpAddress}} vừa được ARP phát hiện lại và khôi phục từ Cooldown sang AutoDetected. Nguồn gốc trước khi vào Cooldown có bao gồm Requested — DNS record và sổ đăng ký KHÔNG được khôi phục tự động, cần IT xác nhận chủ sở hữu/mục đích sử dụng hiện tại của IP này.

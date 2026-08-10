@@ -64,9 +64,12 @@ flowchart LR
 ├── docs/                       Design doc, operations runbook, open questions
 ├── infra/                      IaC (Bicep) + bootstrap script for the Azure VM
 ├── src/
-│   ├── workers/                4 PowerShell workers + shared modules
-│   ├── arp-collector/          ARP collection worker (Python) + IPAM reflection script (PowerShell)
-│   └── config/                 External parameters (day thresholds, etc. — never hard-coded in workers)
+│   ├── common/                  Shared PowerShell modules (lock, retry, log, SharePoint, notification) — used by both workers/ and monitoring/
+│   ├── workers/                 4 official workers per design table 4.2 (all of them write IPAM/DNS/SharePoint)
+│   │   ├── allocation-worker/    + segment-sync-worker/, auto-deletion-worker/ (PowerShell)
+│   │   └── arp-worker/           ARP collection (Python) + IPAM reflection script (PowerShell)
+│   ├── monitoring/              Read-only watchdog — NOT one of the 4 workers (design calls it "Script", not "Worker"; no write permission at all)
+│   └── config/                  External parameters (day thresholds, log message catalogs — never hard-coded in workers)
 ├── powerplatform/              Power Apps canvas app + Power Automate flows (Power Platform Solution)
 ├── sharepoint/                 Schema + provisioning scripts for the 7 SharePoint lists
 ├── tools/                      Initial data-load scripts (Segments, ArpDeviceStatus)

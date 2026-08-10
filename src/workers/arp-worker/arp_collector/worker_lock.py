@@ -3,7 +3,7 @@
 không chỉ riêng pha Python.
 
 Thiết kế: Python giữ lock lúc bắt đầu; PowerShell (pha CUỐI, chạy sau khi Python xuất xong JSON)
-mới là bên giải phóng, bằng `Exit-WorkerLock` sẵn có trong `IpamWorkerCommon.psm1` — hàm đó chỉ
+mới là bên giải phóng, bằng `Exit-WorkerLock` sẵn có trong `Common.psm1` — hàm đó chỉ
 `Remove-Item` theo đường dẫn, không kiểm tra PID sở hữu, nên xoá được lock do tiến trình/ngôn ngữ
 khác tạo ra. Định dạng file JSON `{"ProcessId", "AcquiredAt"}` cố ý khớp với
 `Enter-WorkerLock`/`Exit-WorkerLock` phía PowerShell (8.4) để 2 phía tương thích.

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "arp-collector"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "workers" / "arp-worker"))
 
 from arp_collector import main as arp_main  # noqa: E402
 from arp_collector.device_registry import ArpDevice  # noqa: E402

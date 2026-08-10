@@ -1,0 +1,7 @@
+{
+  "_comment_ALLOC": "=== allocation-worker (7.1) ===",
+  "ERR-ALLOC-0001": "Lỗi xử lý item {{ItemId}}: {{ErrorDetail}}",
+
+  "_comment_NOTIF": "=== src/common/NotificationClient.psm1 — ha tang dung chung ===",
+  "ERR-NOTIF-0001": "Gửi alert '{{Subject}}' thất bại: {{ErrorDetail}}"
+}

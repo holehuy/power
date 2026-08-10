@@ -9,20 +9,21 @@
     các phần khác (kiểm tra ngưỡng, đối chiếu, coverage) vẫn tiếp tục (cô lập sự cố theo đơn vị server).
 
     Dữ liệu output của Worker này (Segments + IPAM range) là ĐIỀU KIỆN TIÊN QUYẾT để allocation-worker
-    và arp-collector chạy đúng — nên build/test Worker này trước các Worker khác.
+    và arp-worker chạy đúng — nên build/test Worker này trước các Worker khác.
 #>
 
 [CmdletBinding()]
 param()
 
 $ErrorActionPreference = 'Stop'
-Import-Module "$PSScriptRoot\..\common\IpamWorkerCommon.psm1" -Force
-Import-Module "$PSScriptRoot\..\common\SharePointClient.psm1" -Force
-Import-Module "$PSScriptRoot\..\common\NotificationClient.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\common\Common.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\common\SharePointClient.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\common\NotificationClient.psm1" -Force
+Set-CurrentWorkerId -WorkerId 'SYNC'
 
 $lockPath = Enter-WorkerLock -WorkerName 'SegmentSyncWorker'
 try {
-    Write-WorkerLog -Message 'SegmentSyncWorker bắt đầu chu kỳ.' -EventId 1201
+    Write-InfoLog -Code 'INFO-SYNC-0001'
 
     function Get-FixedIpRange {
         <#
@@ -51,7 +52,7 @@ try {
         catch {
             # Cô lập sự cố theo đơn vị server (7.2): chỉ skip scope của server này, Segments/IPAM
             # range giữ giá trị đồng bộ lần trước. Hạn chế thông báo lỗi 1 lần/ngày (bản ghi cục bộ, 8.4).
-            Write-WorkerLog -Message "Query DHCP server đại diện '$($server.Name)' thất bại: $_" -Level Warning -EventId 1202
+            Write-WarningLog -Message "Query DHCP server đại diện '$($server.Name)' thất bại: $_"
             continue
         }
 
@@ -99,7 +100,7 @@ try {
     }
     Update-RangeChangePendingFlags
 
-    Write-WorkerLog -Message 'SegmentSyncWorker kết thúc chu kỳ.' -EventId 1203
+    Write-InfoLog -Code 'INFO-SYNC-0002'
 }
 finally {
     Exit-WorkerLock -LockPath $lockPath

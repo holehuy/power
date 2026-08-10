@@ -18,8 +18,9 @@
         Windows Server IPAM thật trên VM (8.1: Server 2022+) — code dưới dùng cú pháp hashtable
         `-CustomField @{Name=Value}` nhất quán, nhưng chưa được chạy thử với module IpamServer
         thật (không có ở môi trường lint/test Docker này — xem README "Limitation").
-      - Nội dung email (Subject/Body) là placeholder hợp lý, KHÔNG phải văn bản cuối cùng —
-        chương 13 (mẫu thông báo) chưa có, đã tracked ở docs/open-questions.md.
+      - Nội dung email (`common/templates/F14-cooldown-restore.txt`) là placeholder hợp lý, KHÔNG
+        phải văn bản cuối cùng — chương 13 (mẫu thông báo) chưa có, đã tracked ở
+        docs/open-questions.md. Khi có mẫu thật, chỉ cần sửa file template — không sửa script này.
 
     Testability: file này CỐ Ý không có `#Requires -Modules IpamServer` ở đầu (khác với các
     Worker PowerShell khác trong repo) — `#Requires` chặn cả việc DOT-SOURCE file để lấy định
@@ -35,9 +36,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-Import-Module "$PSScriptRoot\..\..\workers\common\IpamWorkerCommon.psm1" -Force
-Import-Module "$PSScriptRoot\..\..\workers\common\SharePointClient.psm1" -Force
-Import-Module "$PSScriptRoot\..\..\workers\common\NotificationClient.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\..\common\Common.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\..\common\SharePointClient.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\..\common\NotificationClient.psm1" -Force
+Set-CurrentWorkerId -WorkerId 'ARP'
 
 function ConvertTo-JstIso8601 {
     <#
@@ -52,7 +54,7 @@ function ConvertTo-JstIso8601 {
 function Get-SegmentForIp {
     <#
     .SYNOPSIS
-        Tìm segment mà 1 IP thuộc dải CỐ ĐỊNH của nó (Test-IpAddressInStaticRange, IpamWorkerCommon).
+        Tìm segment mà 1 IP thuộc dải CỐ ĐỊNH của nó (Test-IpAddressInStaticRange, Common.psm1).
         Trả $null nếu IP thuộc dynamic pool hoặc không thuộc bất kỳ segment nào -> bỏ qua ở 7.3.
     #>
     param(
@@ -90,7 +92,7 @@ function Invoke-ArpReflection {
 
         $mutex = Enter-IpEntryMutex -IpAddress $entry.ip_address
         if ($null -eq $mutex) {
-            Write-WorkerLog -Message "Bỏ qua $($entry.ip_address): không lấy được mutex trong timeout (8.4)." -Level Warning
+            Write-WarningLog -Message "Bỏ qua $($entry.ip_address): không lấy được mutex trong timeout (8.4)."
             continue
         }
         try {
@@ -110,9 +112,7 @@ function Invoke-ArpReflection {
                 Set-IpamAddress -IpAddress $entry.ip_address -CustomField @{ RequestId = $null }
                 # MacAddress KHÔNG thao tác ở đây — cập nhật sau đó tuân theo quy tắc MAC chung bên dưới.
                 if ($originalHadRequested) {
-                    Send-InternalAlert `
-                        -Subject "[IPAM-Worker] Khôi phục IP $($entry.ip_address) từ Cooldown (Phụ lục F#14)" `
-                        -Body "IP $($entry.ip_address) vừa được ARP phát hiện lại và khôi phục từ Cooldown sang AutoDetected. Nguồn gốc trước khi vào Cooldown có bao gồm Requested — DNS record và sổ đăng ký KHÔNG được khôi phục tự động, cần IT xác nhận chủ sở hữu/mục đích sử dụng hiện tại của IP này."
+                    Send-TemplatedAlert -TemplateName 'F14-cooldown-restore' -Parameters @{ IpAddress = $entry.ip_address }
                 }
             }
             elseif ($existingIpamEntry) {
@@ -129,7 +129,7 @@ function Invoke-ArpReflection {
             else {
                 # (c) Chưa đăng ký -> AutoDetected, TRỪ KHI segment IsActive=false hoặc RangeChangePending=true.
                 if (-not $segment.IsActive -or $segment.RangeChangePending) {
-                    Write-WorkerLog -Message "Giữ đăng ký AutoDetected của $($entry.ip_address): segment '$($segment.SegmentName)' IsActive=false hoặc RangeChangePending=true (7.3) — đánh giá lại chu kỳ sau." -Level Information
+                    Write-InfoLog -Message "Giữ đăng ký AutoDetected của $($entry.ip_address): segment '$($segment.SegmentName)' IsActive=false hoặc RangeChangePending=true (7.3) — đánh giá lại chu kỳ sau."
                     continue
                 }
                 Add-IpamAddress -IpAddress $entry.ip_address -MacAddress $entry.mac_address `
@@ -147,9 +147,11 @@ function Invoke-ArpReflection {
                 # MAC khác nhau cho cùng 1 IP -> timestamp mới nhất thắng, ghi đè MAC (v1.1).
                 Set-IpamAddress -IpAddress $entry.ip_address -MacAddress $entry.mac_address
                 if ($existingIpamEntry.Source -contains 'Requested') {
-                    Send-InternalAlert `
-                        -Subject "[IPAM-Worker] Nghi ngờ xung đột IP $($entry.ip_address) (Phụ lục F#13)" `
-                        -Body "IP $($entry.ip_address) (Source=Requested) vừa phát hiện MAC khác với MAC đã đăng ký trước đó. MAC cũ: $($existingIpamEntry.MacAddress). MAC mới phát hiện: $($entry.mac_address). Đã ghi đè theo quy tắc timestamp mới nhất thắng — cần kiểm tra thủ công xem có thiết bị lạ đang dùng IP này không."
+                    Send-TemplatedAlert -TemplateName 'F13-mac-conflict-suspected' -Parameters @{
+                        IpAddress    = $entry.ip_address
+                        OldMacAddress = $existingIpamEntry.MacAddress
+                        NewMacAddress = $entry.mac_address
+                    }
                 }
                 # Source=AutoDetected -> không thông báo (v1.1).
             }
@@ -167,12 +169,16 @@ function Invoke-ArpReflection {
 # (Invoke-ArpReflection, Get-SegmentForIp, ConvertTo-JstIso8601) mà không chạy I/O thật
 # (đọc file JSON/SharePoint/Exit-WorkerLock) — quy ước testability cho script .ps1 dạng này.
 if ($MyInvocation.InvocationName -ne '.') {
+    # Trước đây không có log "bắt đầu" riêng cho pha phản ánh IPAM (chỉ có log kết thúc) — thêm
+    # để nhất quán với 4 Worker kia (mọi Worker đều có cặp log bắt đầu/kết thúc chu kỳ).
+    Write-InfoLog -Code 'INFO-ARP-0001'
+
     $arpEntries = @(Get-Content $ArpResultPath -Raw | ConvertFrom-Json)
     $segmentsSnapshot = @(Get-SharePointListItems -ListName 'Segments')
 
     $processedCount = Invoke-ArpReflection -ArpEntries $arpEntries -SegmentsSnapshot $segmentsSnapshot
 
-    Write-WorkerLog -Message "Phản ánh IPAM xong: $processedCount/$($arpEntries.Count) entry xử lý." -EventId 1301
+    Write-InfoLog -Code 'INFO-ARP-0002' -Parameters @{ ProcessedCount = $processedCount; TotalCount = $arpEntries.Count }
 
     # Lock bao trùm CẢ 2 pha (Python thu thập + PowerShell phản ánh, cùng 1 Task Scheduler job) —
     # pha PowerShell (CUỐI) là bên giải phóng lock do Python tạo ở đầu job (xem QA trong

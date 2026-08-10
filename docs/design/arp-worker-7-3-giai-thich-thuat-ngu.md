@@ -1,6 +1,6 @@
 # Giải thích thuật ngữ & dịch vụ dùng trong luồng 7.3 (Worker thu thập ARP)
 
-> Tài liệu bổ trợ — không phải bản thiết kế chính thức. Mục đích: giải thích các thuật ngữ, giao thức, dịch vụ xuất hiện trong `simple_design.md` mục 7.3 và code ở `src/arp-collector/`, để đọc thiết kế không bị vướng vì thiếu ngữ cảnh kỹ thuật. Khi có sai khác, `simple_design.md` vẫn là source of trust.
+> Tài liệu bổ trợ — không phải bản thiết kế chính thức. Mục đích: giải thích các thuật ngữ, giao thức, dịch vụ xuất hiện trong `simple_design.md` mục 7.3 và code ở `src/workers/arp-worker/`, để đọc thiết kế không bị vướng vì thiếu ngữ cảnh kỹ thuật. Khi có sai khác, `simple_design.md` vẫn là source of trust.
 
 ---
 
@@ -32,7 +32,7 @@ Mọi router/switch/firewall trong mạng đều tự động duy trì một **b
 - Trong 7.3, OID cần đọc là bảng ARP nội bộ của thiết bị:
   - `ipNetToPhysicalTable` (OID `1.3.6.1.2.1.4.35.1.4`) — chuẩn mới hơn.
   - `ipNetToMediaTable` (OID `1.3.6.1.2.1.4.22.1.2`) — chuẩn cũ, dùng làm **fallback** nếu thiết bị không hỗ trợ bảng mới.
-- Thư viện Python dùng để nói chuyện SNMP: `pysnmp` (thấy trong [cisco_ios.py](../../src/arp-collector/arp_collector/collectors/cisco_ios.py)).
+- Thư viện Python dùng để nói chuyện SNMP: `pysnmp` (thấy trong [cisco_ios.py](../../src/workers/arp-worker/arp_collector/collectors/cisco_ios.py)).
 - Tham số đã chốt (8.3): timeout 5 giây/thiết bị, retry 2 lần, độ song song = 1 (hỏi tuần tự từng máy, không hỏi đồng thời nhiều máy — để tránh làm quá tải CPU của thiết bị mạng cũ).
 - Áp dụng cho: Cisco Catalyst (IOS), FortiGate, Yamaha RTX/NVR.
 
@@ -47,7 +47,7 @@ Mọi router/switch/firewall trong mạng đều tự động duy trì một **b
 
 ### 2.3 Vì sao phải phân biệt theo `DeviceType`
 
-Mỗi thiết bị trong danh sách `ArpDeviceStatus` có một cột `DeviceType` (`CiscoIOS` / `FortiGate` / `YamahaRTX` / `MerakiMX`) — đây là "công tắc" quyết định code sẽ dùng SNMP hay Meraki API để hỏi thiết bị đó (xem [main.py:21-26](../../src/arp-collector/arp_collector/main.py#L21-L26), biến `DEVICE_TYPE_DISPATCH`). Nếu cột này để trống hoặc gõ sai giá trị, Worker sẽ **bỏ qua thiết bị đó và tính là một lần thất bại** (không âm thầm bỏ qua — nguyên tắc "cấm silent error", 8.4).
+Mỗi thiết bị trong danh sách `ArpDeviceStatus` có một cột `DeviceType` (`CiscoIOS` / `FortiGate` / `YamahaRTX` / `MerakiMX`) — đây là "công tắc" quyết định code sẽ dùng SNMP hay Meraki API để hỏi thiết bị đó (xem [main.py:21-26](../../src/workers/arp-worker/arp_collector/main.py#L21-L26), biến `DEVICE_TYPE_DISPATCH`). Nếu cột này để trống hoặc gõ sai giá trị, Worker sẽ **bỏ qua thiết bị đó và tính là một lần thất bại** (không âm thầm bỏ qua — nguyên tắc "cấm silent error", 8.4).
 
 ---
 
@@ -160,4 +160,4 @@ Vì có nhiều Worker (payout, đồng bộ segment, thu thập ARP, tự độ
 
 ---
 
-*Nguồn: `simple_design.md` mục 7.3 (dòng 1151–1191), mục 6.3/6.9/8.2/8.3/8.4; bản dịch `docs/design/Fixed IP Address Auto Allocation System Design v1.4.md` dòng 620–660; code tham chiếu tại `src/arp-collector/`.*
+*Nguồn: `simple_design.md` mục 7.3 (dòng 1151–1191), mục 6.3/6.9/8.2/8.3/8.4; bản dịch `docs/design/Fixed IP Address Auto Allocation System Design v1.4.md` dòng 620–660; code tham chiếu tại `src/workers/arp-worker/`.*

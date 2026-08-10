@@ -1,6 +1,6 @@
 """Wrapper gọi Microsoft Graph API để đọc/ghi SharePoint list ArpDeviceStatus (7.3/8.2/8.3).
 
-Đối xứng với `src/workers/common/SharePointClient.psm1` phía PowerShell, nhưng KHÔNG dùng chung
+Đối xứng với `src/common/SharePointClient.psm1` phía PowerShell, nhưng KHÔNG dùng chung
 code — Python và PowerShell là 2 runtime riêng biệt trong cùng 1 Task (thiết kế 7.3/GUIDE.md).
 
 QA (đã thêm vào docs/open-questions.md):
@@ -61,7 +61,7 @@ def _get_access_token() -> str:
 def _request_with_backoff(method: str, url: str, **kwargs) -> requests.Response:
     """Retry theo 8.4: tối đa graphApiBackoffMaxAttempts lần, chờ ban đầu graphApiBackoffInitialSeconds
     giây, nhân graphApiBackoffMultiplier mỗi lần. Đối tượng retry: 429/408/5xx/timeout. Ưu tiên
-    header Retry-After nếu có (429). Dùng chung 1 công thức với IpamWorkerCommon.psm1 qua
+    header Retry-After nếu có (429). Dùng chung 1 công thức với Common.psm1 qua
     thresholds.json — không hard-code lại số vòng/độ trễ ở đây (8.4/GUIDE.md).
     """
     max_attempts = config.get_threshold("graphApiBackoffMaxAttempts")

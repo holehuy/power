@@ -24,7 +24,7 @@ if (-not (Get-WindowsFeature -Name IPAM).Installed) {
     Install-WindowsFeature IPAM -IncludeManagementTools
 }
 
-Write-Host "2/5 Installing the Python runtime for arp-collector (requires 3.11+)..."
+Write-Host "2/5 Installing the Python runtime for the ARP worker (requires 3.11+)..."
 # TODO: install Python 3.11 via winget/choco per internal infrastructure standards; runtime patching
 # is owned by the network/infrastructure team going forward.
 
@@ -44,13 +44,17 @@ if (-not [System.Diagnostics.EventLog]::SourceExists($EventLogName)) {
     Limit-EventLog -LogName $EventLogName -MaximumSize 512MB -OverflowAction OverwriteAsNeeded
 }
 
-Write-Host "5/5 Registering Task Scheduler jobs for the 5 workers (frequencies per design doc table 4.2)..."
+Write-Host "5/5 Registering Task Scheduler jobs: 4 official workers + 1 read-only monitoring script (frequencies per design doc table 4.2 + its footnote)..."
+# Script paths are relative to $WorkerRootPath\scripts\, which must mirror src/'s structure
+# EXACTLY (workers/, monitoring/, common/, config/ all as direct children) — the relative
+# Import-Module paths inside each .ps1 (../../common/, ../common/, etc.) assume this exact
+# layout. See "Next step" Write-Host below: deploy src/ as a verbatim copy, not flattened.
 $jobs = @(
-    @{ Name = 'IPAM-AllocationWorker';    Script = 'allocation-worker\Invoke-AllocationWorker.ps1';       Trigger = 'RepeatMinutes:5' }
-    @{ Name = 'IPAM-SegmentSyncWorker';   Script = 'segment-sync-worker\Invoke-SegmentSyncWorker.ps1';     Trigger = 'AtMinute:15,45' }
-    @{ Name = 'IPAM-ArpCollector';        Script = 'arp-collector\main.py + reflect-to-ipam\Invoke-ReflectArpResults.ps1'; Trigger = 'AtMinute:00' }
-    @{ Name = 'IPAM-AutoDeletionWorker';  Script = 'auto-deletion-worker\Invoke-AutoDeletionWorker.ps1';   Trigger = 'Daily:02:00' }
-    @{ Name = 'IPAM-MonitoringScript';    Script = 'monitoring-script\Invoke-MonitoringCheck.ps1';         Trigger = 'Daily:07:00' }
+    @{ Name = 'IPAM-AllocationWorker';    Script = 'workers\allocation-worker\Invoke-AllocationWorker.ps1';       Trigger = 'RepeatMinutes:5' }
+    @{ Name = 'IPAM-SegmentSyncWorker';   Script = 'workers\segment-sync-worker\Invoke-SegmentSyncWorker.ps1';     Trigger = 'AtMinute:15,45' }
+    @{ Name = 'IPAM-ArpWorker';           Script = 'workers\arp-worker\arp_collector\main.py + reflect-to-ipam\Invoke-ReflectArpResults.ps1'; Trigger = 'AtMinute:00' }
+    @{ Name = 'IPAM-AutoDeletionWorker';  Script = 'workers\auto-deletion-worker\Invoke-AutoDeletionWorker.ps1';   Trigger = 'Daily:02:00' }
+    @{ Name = 'IPAM-Monitoring';          Script = 'monitoring\Invoke-MonitoringCheck.ps1';                       Trigger = 'Daily:07:00' }
 )
 foreach ($job in $jobs) {
     Write-Host "  -> $($job.Name) : $($job.Script) [$($job.Trigger)]"
@@ -58,4 +62,4 @@ foreach ($job in $jobs) {
     # a personal account. Store credentials via SecretManagement/DPAPI — never plaintext.
 }
 
-Write-Host "Bootstrap complete. Next step: deploy the contents of src/workers/ and src/arp-collector/ into $WorkerRootPath\scripts."
+Write-Host "Bootstrap complete. Next step: deploy src/ (workers/, monitoring/, common/, config/ — as a verbatim copy, preserving structure) into $WorkerRootPath\scripts."

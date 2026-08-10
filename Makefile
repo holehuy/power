@@ -25,7 +25,7 @@ test-ps: build
 # package apt already manages on the base image.
 test-py: build
 	docker compose run --rm dev bash -c \
-		"python3 -m venv /tmp/venv && /tmp/venv/bin/pip install -q -r src/arp-collector/requirements.txt pytest && /tmp/venv/bin/pytest tests/python -v"
+		"python3 -m venv /tmp/venv && /tmp/venv/bin/pip install -q -r src/workers/arp-worker/requirements.txt pytest && /tmp/venv/bin/pytest tests/python -v"
 
 test: test-ps test-py
 

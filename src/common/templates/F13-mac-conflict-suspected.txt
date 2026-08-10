@@ -1,0 +1,3 @@
+Subject: [IPAM-Worker] Nghi ngờ xung đột IP {{IpAddress}} (Phụ lục F#13)
+---
+IP {{IpAddress}} (Source=Requested) vừa phát hiện MAC khác với MAC đã đăng ký trước đó. MAC cũ: {{OldMacAddress}}. MAC mới phát hiện: {{NewMacAddress}}. Đã ghi đè theo quy tắc timestamp mới nhất thắng — cần kiểm tra thủ công xem có thiết bị lạ đang dùng IP này không.

@@ -1,13 +1,13 @@
 #Requires -Modules Pester
 <#
-    Test cho các hàm IP/CIDR/dải tĩnh trong IpamWorkerCommon.psm1 — dùng chung bởi
+    Test cho các hàm IP/CIDR/dải tĩnh trong Common.psm1 — dùng chung bởi
     reflect-to-ipam (7.3) và (tương lai) auto-deletion-worker (7.4-3, "IP không thuộc bất kỳ
     IPAM range nào"). Sai công thức ở đây có nghĩa là ARP tự động đăng ký nhầm IP thuộc dynamic
     pool, hoặc auto-deletion-worker đánh giá xóa nhầm IP ngoài phạm vi — rủi ro cao, test kỹ.
 #>
 
 BeforeAll {
-    Import-Module "$PSScriptRoot\..\..\src\workers\common\IpamWorkerCommon.psm1" -Force
+    Import-Module "$PSScriptRoot\..\..\src\common\Common.psm1" -Force
 }
 
 Describe 'ConvertTo-UInt32IpAddress' {

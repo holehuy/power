@@ -22,13 +22,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-Import-Module "$PSScriptRoot\..\common\IpamWorkerCommon.psm1" -Force
-Import-Module "$PSScriptRoot\..\common\SharePointClient.psm1" -Force
-Import-Module "$PSScriptRoot\..\common\NotificationClient.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\common\Common.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\common\SharePointClient.psm1" -Force
+Import-Module "$PSScriptRoot\..\..\common\NotificationClient.psm1" -Force
+Set-CurrentWorkerId -WorkerId 'ALLOC'
 
 $lockPath = Enter-WorkerLock -WorkerName 'AllocationWorker'
 try {
-    Write-WorkerLog -Message 'AllocationWorker bắt đầu chu kỳ.' -EventId 1101
+    Write-InfoLog -Code 'INFO-ALLOC-0001'
 
     # --- Bước 0: tổng hợp Status cha cho các record đã đủ điều kiện kết thúc (7.1, idempotent) ---
     function Sync-ParentRequestStatus {
@@ -64,7 +65,7 @@ try {
                 }
                 catch {
                     if ($_.Exception.Message -notmatch 'uniqueness|duplicate') { throw }
-                    Write-WorkerLog -Message "Ứng viên IP trùng (lần $candidateAttempt/3) cho item $($item.Id)." -Level Warning
+                    Write-WarningLog -Message "Ứng viên IP trùng (lần $candidateAttempt/3) cho item $($item.Id)."
                 }
             }
             if (-not $assignedIp) {
@@ -101,7 +102,7 @@ try {
         }
         catch {
             # Lỗi tạm thời (Graph/IPAM/DNS) -> rollback IPAM nếu đã đăng ký -> trả Pending -> tăng RetryCount.
-            Write-WorkerLog -Message "Lỗi xử lý item $($item.Id): $_" -Level Error -EventId 1102
+            Write-ErrorLog -Code 'ERR-ALLOC-0001' -Parameters @{ ItemId = $item.Id; ErrorDetail = $_ }
             # TODO: tăng RetryCount; nếu RetryCount >= 3 -> rollback IPAM -> Status=Failed, ErrorCategory=SystemError,
             # gửi escalation tới nkis-network (Phụ lục F#17). Nếu < 3 -> Status=Pending để xử lý ở chu kỳ sau.
         }
@@ -115,7 +116,7 @@ try {
     }
     Reclaim-StuckProcessingItems
 
-    Write-WorkerLog -Message 'AllocationWorker kết thúc chu kỳ.' -EventId 1103
+    Write-InfoLog -Code 'INFO-ALLOC-0002'
 }
 finally {
     Exit-WorkerLock -LockPath $lockPath

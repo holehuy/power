@@ -11,7 +11,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "arp-collector"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "workers" / "arp-worker"))
 
 from arp_collector.device_registry import compute_next_device_state  # noqa: E402
 

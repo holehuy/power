@@ -1,0 +1,29 @@
+{
+  "_comment_ALLOC": "=== allocation-worker (7.1), moi 5 phut ===",
+  "INFO-ALLOC-0001": "AllocationWorker bắt đầu chu kỳ.",
+  "INFO-ALLOC-0002": "AllocationWorker kết thúc chu kỳ.",
+
+  "_comment_SYNC": "=== segment-sync-worker (7.2), moi 30 phut ===",
+  "INFO-SYNC-0001": "SegmentSyncWorker bắt đầu chu kỳ.",
+  "INFO-SYNC-0002": "SegmentSyncWorker kết thúc chu kỳ.",
+
+  "_comment_DEL": "=== auto-deletion-worker (7.4), hang ngay 02:00 JST ===",
+  "INFO-DEL-0001": "AutoDeletionWorker bắt đầu chu kỳ.",
+  "INFO-DEL-0002": "AutoDeletionWorker kết thúc chu kỳ.",
+
+  "_comment_ARP": "=== arp-worker/reflect-to-ipam (7.3), moi gio ===",
+  "INFO-ARP-0001": "ArpWorker (reflect-to-ipam) bắt đầu phản ánh IPAM.",
+  "INFO-ARP-0002": "Phản ánh IPAM xong: {{ProcessedCount}}/{{TotalCount}} entry xử lý.",
+
+  "_comment_MON": "=== src/monitoring, hang ngay 07:00 JST — KHONG phai 1 trong 4 Worker chinh thuc (chi doc, xem GUIDE.md) ===",
+  "INFO-MON-0001": "MonitoringScript bắt đầu.",
+  "INFO-MON-0002": "MonitoringScript kết thúc. {{Count}} bất thường.",
+
+  "_comment_SHAREPOINT": "=== src/common/SharePointClient.psm1 — ha tang dung chung, khong theo chu ky Task Scheduler nhu 5 script tren, nhung van co start/end quanh 1 lan goi Connect-SharePointGraph ===",
+  "INFO-SHAREPOINT-0001": "Bắt đầu kết nối SharePoint Graph API.",
+  "INFO-SHAREPOINT-0002": "Connect-SharePointGraph thành công (SiteId={{SiteId}}).",
+
+  "_comment_NOTIF": "=== src/common/NotificationClient.psm1 — ha tang dung chung, khong theo chu ky Task Scheduler nhu 5 script tren, nhung van co start/end quanh 1 lan goi Send-InternalAlert (end = thanh cong o day, hoac ERR-NOTIF-0001 neu that bai) ===",
+  "INFO-NOTIF-0001": "Bắt đầu gửi alert '{{Subject}}' tới {{To}}.",
+  "INFO-NOTIF-0002": "Đã gửi alert '{{Subject}}' tới {{To}} thành công."
+}

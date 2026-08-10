@@ -14,17 +14,20 @@ BeforeAll {
     function Add-IpamAddress { param($IpAddress, $MacAddress, $CustomField) }
     function Set-IpamAddress { param($IpAddress, $MacAddress, $Source, $CustomField) }
 
-    Import-Module "$PSScriptRoot\..\..\src\workers\common\IpamWorkerCommon.psm1" -Force
-    Import-Module "$PSScriptRoot\..\..\src\workers\common\NotificationClient.psm1" -Force
+    Import-Module "$PSScriptRoot\..\..\src\common\Common.psm1" -Force
+    Import-Module "$PSScriptRoot\..\..\src\common\NotificationClient.psm1" -Force
     # Dot-source (không execute entry-point) — xem guard $MyInvocation.InvocationName trong file.
-    . "$PSScriptRoot\..\..\src\arp-collector\reflect-to-ipam\Invoke-ReflectArpResults.ps1"
+    . "$PSScriptRoot\..\..\src\workers\arp-worker\reflect-to-ipam\Invoke-ReflectArpResults.ps1"
 }
 
 Describe 'Invoke-ArpReflection (7.3) — phân nhánh theo IP' {
 
     BeforeEach {
-        Mock Write-WorkerLog {}
-        Mock Send-InternalAlert {}
+        # -ModuleName Common: sau khi migrate script sang Write-InfoLog/-WarningLog, lệnh gọi
+        # Write-WorkerLog thật sự xảy ra BÊN TRONG Common.psm1 (do 2 hàm đó gọi xuống), không phải
+        # từ scope của script dot-source này nữa — mock không chỉ định -ModuleName sẽ không chặn được.
+        Mock Write-WorkerLog -ModuleName Common {}
+        Mock Send-TemplatedAlert {}
         Mock Enter-IpEntryMutex { [System.Threading.Mutex]::new() }
         Mock Exit-IpEntryMutex {}
     }
@@ -117,7 +120,7 @@ Describe 'Invoke-ArpReflection (7.3) — phân nhánh theo IP' {
         Should -Invoke Set-IpamAddress -Times 1 -ParameterFilter { $CustomField -and $CustomField.ContainsKey('Source') -and $CustomField.Source -eq 'AutoDetected' }
         Should -Invoke Set-IpamAddress -Times 1 -ParameterFilter { $CustomField -and $CustomField.ContainsKey('CooldownStartedAt') -and $null -eq $CustomField.CooldownStartedAt }
         Should -Invoke Set-IpamAddress -Times 1 -ParameterFilter { $CustomField -and $CustomField.ContainsKey('RequestId') -and $null -eq $CustomField.RequestId }
-        Should -Invoke Send-InternalAlert -Times 1
+        Should -Invoke Send-TemplatedAlert -Times 1 -ParameterFilter { $TemplateName -eq 'F14-cooldown-restore' -and $Parameters.IpAddress -eq '10.0.0.150' }
     }
 
     It '(a) khoi phuc khi Source goc KHONG co Requested -> khong gui thong bao F#14' {
@@ -133,7 +136,7 @@ Describe 'Invoke-ArpReflection (7.3) — phân nhánh theo IP' {
         $entries = @([PSCustomObject]@{ ip_address = '10.0.0.150'; mac_address = 'aa:bb:cc:dd:ee:99'; observed_at = '2026-08-05T03:00:00+00:00' })
 
         Invoke-ArpReflection -ArpEntries $entries -SegmentsSnapshot @($segmentWithScope) | Should -Be 1
-        Should -Invoke Send-InternalAlert -Times 0
+        Should -Invoke Send-TemplatedAlert -Times 0
     }
 
     It '(b) da dang ky khong Cooldown, LastSeenAt < 24h truoc -> KHONG cap nhat LastSeenAt' {
@@ -182,7 +185,11 @@ Describe 'Invoke-ArpReflection (7.3) — phân nhánh theo IP' {
 
         Invoke-ArpReflection -ArpEntries $entries -SegmentsSnapshot @($segmentWithScope) | Should -Be 1
         Should -Invoke Set-IpamAddress -Times 1 -ParameterFilter { $MacAddress -eq 'bb:bb:bb:bb:bb:bb' }
-        Should -Invoke Send-InternalAlert -Times 1
+        Should -Invoke Send-TemplatedAlert -Times 1 -ParameterFilter {
+            $TemplateName -eq 'F13-mac-conflict-suspected' -and
+            $Parameters.OldMacAddress -eq 'aa:aa:aa:aa:aa:aa' -and
+            $Parameters.NewMacAddress -eq 'bb:bb:bb:bb:bb:bb'
+        }
     }
 
     It 'MAC khac nhau tren IP Source=AutoDetected -> ghi de MAC nhung KHONG thong bao' {
@@ -198,7 +205,7 @@ Describe 'Invoke-ArpReflection (7.3) — phân nhánh theo IP' {
         $entries = @([PSCustomObject]@{ ip_address = '10.0.0.150'; mac_address = 'bb:bb:bb:bb:bb:bb'; observed_at = '2026-08-05T04:00:00+00:00' })
 
         Invoke-ArpReflection -ArpEntries $entries -SegmentsSnapshot @($segmentWithScope) | Should -Be 1
-        Should -Invoke Send-InternalAlert -Times 0
+        Should -Invoke Send-TemplatedAlert -Times 0
     }
 
     It 'Segment DhcpScopeExists=false: dung toan bo CIDR lam dai co dinh' {

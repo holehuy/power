@@ -12,7 +12,7 @@ Cập nhật file này liên tục trong suốt dự án — đừng để nó t
 - [ ] Severity mục tiêu của PSScriptAnalyzer ("重大")
 - [ ] Ngưỡng đạt của đo thực tế 1 cycle thu thập ARP
 - [ ] Thời điểm phê duyệt bảng quan điểm test tích hợp
-- [ ] Mẫu văn bản email alert phát từ Worker
+- [ ] Mẫu văn bản email alert phát từ Worker — hạ tầng nhận đã sẵn sàng (`Send-TemplatedAlert` + `common/templates/*.txt|*.html`, xem GUIDE.md); khi có văn bản thật chỉ cần thêm/sửa file template theo ID Phụ lục F, không cần sửa code Worker
 
 ## B. Phụ lục C — Checklist khảo sát trước (chặn đường build)
 
@@ -45,15 +45,15 @@ Cập nhật file này liên tục trong suốt dự án — đừng để nó t
 
 - Chương 11 (đầy đủ, gồm 11.1 tổng hợp công số, 11.2, 11.3 điều kiện đặt hàng) và chương 13 (mẫu nội dung thông báo) được tham chiếu nhiều lần trong nội dung nhưng không có trong bản Việt hóa hiện tại (`docs/design/`). Cần xin bản gốc đầy đủ trước khi ước lượng effort hoặc soạn mẫu email thật.
 
-## E. Phát sinh khi implement Worker ARP (7.3, `src/arp-collector/` + `src/workers/common/SharePointClient.psm1`)
+## E. Phát sinh khi implement Worker ARP (7.3, `src/workers/arp-worker/` + `src/common/SharePointClient.psm1`)
 
 Cập nhật khi implement code thật (trước đó toàn bộ chỉ là stub `NotImplementedError`/`throw`, các rủi ro này bị che khuất). Không chặn việc build tiếp — nhưng PHẢI xác nhận trước khi test tích hợp thật với dữ liệu/thiết bị thật.
 
-- [ ] **Schema JSON của `Segments.StaticIpRangeRaw`** (6.3: "JSON表現，複数レンジ対応") chưa được đặc tả tường minh trong thiết kế gốc. `IpamWorkerCommon.psm1` (`ConvertFrom-StaticIpRangeRaw`) đang giả định mảng object `{start,end}` (vd `[{"start":"10.11.20.10","end":"10.11.20.200"}]`). Xác nhận với đội build `segment-sync-worker` (nơi SINH ra cột này ở `Get-FixedIpRange`, 7.2) trước khi 2 Worker (ARP + auto-deletion) đọc dữ liệu thật của nhau.
+- [ ] **Schema JSON của `Segments.StaticIpRangeRaw`** (6.3: "JSON表現，複数レンジ対応") chưa được đặc tả tường minh trong thiết kế gốc. `Common.psm1` (`ConvertFrom-StaticIpRangeRaw`) đang giả định mảng object `{start,end}` (vd `[{"start":"10.11.20.10","end":"10.11.20.200"}]`). Xác nhận với đội build `segment-sync-worker` (nơi SINH ra cột này ở `Get-FixedIpRange`, 7.2) trước khi 2 Worker (ARP + auto-deletion) đọc dữ liệu thật của nhau.
 - [ ] **MSAL.PS chưa nằm trong bảng Requirements của README.md** — `SharePointClient.psm1` (`Connect-SharePointGraph`) cần module này để xác thực chứng chỉ qua Graph API. Cần thêm bước `Install-Module MSAL.PS` vào `infra/scripts/bootstrap-vm.ps1` (hiện chưa có).
 - [ ] **msal (Python) không đọc được chứng chỉ trực tiếp từ Windows certificate store** như MSAL.PS bên PowerShell (`Connect-SharePointGraph` dùng `Cert:\CurrentUser\My`) — msal-python chỉ nhận private key dạng nội dung PEM + thumbprint. `arp_collector/graph_client.py` vì vậy cần 1 file PEM riêng (`IPAM_GRAPH_CERT_PEM_PATH`) thay vì tham chiếu cert store — cách bảo vệ file này lúc nghỉ (rest) trên VM là quyết định vận hành còn treo.
 - [ ] **Quy trình nạp secret ban đầu cho `secret_store.py`** (DPAPI, Phụ lục E/GUIDE.md) — thiết kế gốc không có Worker/bước nào "khởi tạo secret" trong 7.3. Đề xuất: bổ sung bước chạy `provision_device_secret()` thủ công vào `docs/runbook/master-maintenance-checklist.md` mỗi khi thêm thiết bị mới vào `ArpDeviceStatus` (10.6).
-- [ ] **Cú pháp pysnmp 6.x thực tế** (namespace/tên hàm hlapi) và cách parse OID của `ipNetToPhysicalTable` (RFC 4293, chỉ số phức tạp hơn `ipNetToMediaTable`) cần xác nhận với môi trường SNMP thật — gộp vào phạm vi khảo sát **C.6** hiện có, không phải mục mới, nhưng cần làm rõ thêm: `src/arp-collector/arp_collector/collectors/cisco_ios.py::_parse_media_table` giả định 4 octet cuối OID là IPv4 trực tiếp.
+- [ ] **Cú pháp pysnmp 6.x thực tế** (namespace/tên hàm hlapi) và cách parse OID của `ipNetToPhysicalTable` (RFC 4293, chỉ số phức tạp hơn `ipNetToMediaTable`) cần xác nhận với môi trường SNMP thật — gộp vào phạm vi khảo sát **C.6** hiện có, không phải mục mới, nhưng cần làm rõ thêm: `src/workers/arp-worker/arp_collector/collectors/cisco_ios.py::_parse_media_table` giả định 4 octet cuối OID là IPv4 trực tiếp.
 - [ ] **FortiGate/Yamaha RTX-NVR có export cùng OID chuẩn MIB-II như Cisco không** — `fortigate.py`/`yamaha_rtx.py` hiện dùng chung logic với Cisco (`_walk_arp_table`), giả định đúng cho tới khi C.6 xác nhận ngược lại theo từng model/firmware thực tế.
 - [ ] **Cú pháp thật của `Get-IpamAddress`/`Add-IpamAddress`/`Set-IpamAddress` khi thao tác custom field** (Source/LastSeenAt/RequestId/CooldownStartedAt) — `Invoke-ReflectArpResults.ps1` dùng cú pháp `-CustomField @{Name=Value}` giả định nhất quán; cần chạy thử với module `IpamServer` thật trên Windows Server (8.1) để xác nhận đúng tham số — ảnh hưởng chung tới `allocation-worker`/`auto-deletion-worker` (cùng thao tác IPAM), không riêng ARP.
 - [ ] **Lock file 2 pha (7.3): Python "acquire", PowerShell "release"** — `arp_collector/worker_lock.py` và `Invoke-ReflectArpResults.ps1` chia sẻ 1 file lock (`logs/locks/ArpCollectionJob.lock`, cùng định dạng JSON với `Enter-WorkerLock`/`Exit-WorkerLock`). Đây là quyết định kiến trúc suy ra lúc implement (thiết kế gốc dòng 1155 chỉ nói chung chung "triển khai mutex/lock file") — cần review lại nếu sau này tách 2 pha thành 2 Task Scheduler job riêng.

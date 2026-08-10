@@ -1,7 +1,7 @@
 <#
     Wrapper gọi Graph API để đọc/ghi 7 SharePoint list. Tách riêng khỏi từng Worker để:
     - đổi cách xác thực (xoay chứng chỉ Entra ID app, 9.2) chỉ sửa 1 nơi;
-    - đảm bảo mọi Worker dùng chung 1 cách retry/log khi gọi Graph (qua IpamWorkerCommon).
+    - đảm bảo mọi Worker dùng chung 1 cách retry/log khi gọi Graph (qua Common.psm1).
 
     Xác thực: đăng ký ứng dụng Entra ID chuyên dụng + chứng chỉ (9.1), quyền tối thiểu
     (chỉ truy cập SharePoint list — KHÔNG cấp quyền đọc directory rộng hơn mức cần).
@@ -21,7 +21,7 @@
 #>
 
 Set-StrictMode -Version Latest
-Import-Module "$PSScriptRoot\IpamWorkerCommon.psm1" -Force
+Import-Module "$PSScriptRoot\Common.psm1" -Force
 
 $script:GraphConnectionParams = $null
 $script:GraphSiteId = $null
@@ -38,6 +38,11 @@ function Connect-SharePointGraph {
         [Parameter(Mandatory)] [string]$CertificateThumbprint,
         [string]$SiteId
     )
+    # Dùng -Code (không phải -EventId tay) — Code tự mang Worker-ID "SHAREPOINT" (đăng ký sẵn
+    # trong $script:WorkerIdEventIdBase, Common.psm1) nên EventId tự suy đúng (1800) mà KHÔNG cần
+    # truyền tay VÀ không phụ thuộc Get-CurrentWorkerId của Worker đang gọi vào đây.
+    Write-InfoLog -Code 'INFO-SHAREPOINT-0001'
+
     Import-Module MSAL.PS -ErrorAction Stop
 
     $cert = Get-Item "Cert:\CurrentUser\My\$CertificateThumbprint" -ErrorAction Stop
@@ -63,7 +68,7 @@ function Connect-SharePointGraph {
         $script:GraphSiteId = $siteResponse.id
     }
 
-    Write-WorkerLog -Message "Connect-SharePointGraph thành công (SiteId=$($script:GraphSiteId))." -EventId 1000
+    Write-InfoLog -Code 'INFO-SHAREPOINT-0002' -Parameters @{ SiteId = $script:GraphSiteId }
 }
 
 function Get-GraphAccessToken {

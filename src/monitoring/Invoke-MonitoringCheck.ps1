@@ -19,11 +19,12 @@
 param()
 
 $ErrorActionPreference = 'Stop'
-Import-Module "$PSScriptRoot\..\common\IpamWorkerCommon.psm1" -Force
+Import-Module "$PSScriptRoot\..\common\Common.psm1" -Force
 Import-Module "$PSScriptRoot\..\common\SharePointClient.psm1" -Force
 Import-Module "$PSScriptRoot\..\common\NotificationClient.psm1" -Force
+Set-CurrentWorkerId -WorkerId 'MON'
 
-Write-WorkerLog -Message 'MonitoringScript bắt đầu.' -EventId 2001
+Write-InfoLog -Code 'INFO-MON-0001'
 
 $findings = New-Object System.Collections.Generic.List[string]
 
@@ -62,4 +63,4 @@ if ($findings.Count -gt 0) {
         -Body ($findings -join "`n")
 }
 
-Write-WorkerLog -Message "MonitoringScript kết thúc. $($findings.Count) bất thường." -EventId 2002
+Write-InfoLog -Code 'INFO-MON-0002' -Parameters @{ Count = $findings.Count }
